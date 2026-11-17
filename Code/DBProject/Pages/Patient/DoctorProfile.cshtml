@@ -1,0 +1,74 @@
+@page
+@model DBProject.Pages.Patient.DoctorProfileModel
+
+@section Head {
+    <title>Doctor's Profile</title>
+}
+
+<!------------------Styling------------------>
+<link rel="stylesheet" href="/assets/css/grid-view.css" />
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <script>alert(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ErrorMessage)));</script>
+}
+
+<div style="background-image:url(/assets/img/backgrounds/PatientHome.jpg); background-position:center; background-size:20px">
+
+    <br />
+    <h1><strong style="margin:37%">Doctor's Profile</strong></h1>
+    <br /><br />
+
+    <div style="margin-left: 70px">
+
+        <h4><strong>Name: </strong></h4>
+        <span id="DName" style="font-weight:bold;font-size:medium">@Model.DName</span>
+        <br /><br />
+
+        <h4><strong>Phone: </strong></h4>
+        <span id="DPhone" style="font-weight:bold;font-size:medium">@Model.DPhone</span>
+        <br /><br />
+
+        <h4><strong>Qualification:</strong></h4>
+        <span id="DQualification" style="font-weight:bold;font-size:medium">@Model.DQualification</span>
+        <br /><br />
+
+        <h4><strong>Specialization:</strong></h4>
+        <span id="DSpecialization" style="font-weight:bold;font-size:medium">@Model.DSpecialization</span>
+        <br /><br />
+
+        <h4><strong>Work Experience:</strong></h4>
+        <span id="DWork" style="font-weight:bold;font-size:medium">@Model.DWork</span>
+        <br /><br />
+
+        <h4><strong>Age: </strong></h4>
+        <span id="DAge" style="font-weight:bold;font-size:medium">@Model.DAge</span>
+        <br /><br />
+
+        <h4><strong>Gender:</strong></h4>
+        <span id="DGender" style="font-weight:bold;font-size:medium">@Model.DGender</span>
+        <br /><br />
+
+        <h4><strong>Department:</strong></h4>
+        <span id="DDept" style="font-weight:bold;font-size:medium">@Model.DDept</span>
+        <br /><br />
+
+        <h4><strong>Charges Per Appointment:</strong></h4>
+        <span id="DCharges" style="font-weight:bold;font-size:medium">@Model.DCharges</span>
+        <br /><br />
+
+        <h4><strong>Repute Index:</strong></h4>
+        <span id="DRI" style="font-weight:bold;font-size:medium">@Model.DRI</span>
+        <br /><br />
+
+        <h4><strong>Number of Patients Treated:</strong></h4>
+        <span id="DPT" style="font-weight:bold;font-size:medium">@Model.DPT</span>
+        <br /><br />
+
+        <form method="post">
+            <button type="submit" id="AppointmentB" style="font-weight:bold">Take Appointment</button>
+        </form>
+
+    </div>
+
+</div>

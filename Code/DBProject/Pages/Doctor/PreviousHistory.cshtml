@@ -1,0 +1,41 @@
+@page
+@model DBProject.Pages.Doctor.PreviousHistoryModel
+
+@section Head {
+    <title> Previous History</title>
+}
+
+<!------------------Styling------------------>
+<link rel="stylesheet" href="/assets/css/grid-view.css" />
+
+<h1><strong style="margin:25%">History of Treated Patients</strong></h1>
+<br /><br />
+
+<span>@Model.ErrorMessage</span>
+<br /><br />
+
+@if (Model.History != null)
+{
+    <table class="GridView-d" cellspacing="0" cellpadding="4" rules="cols"
+           style="color:Black;background-color:White;border-color:#DEDFDE;border-width:1px;border-style:None;width:800px;border-collapse:collapse;">
+        <tr style="color:White;background-color:#6B696B;font-weight:bold;">
+            <th scope="col" style="width:50px">No.</th>
+            @foreach (System.Data.DataColumn col in Model.History.Columns)
+            {
+                <th scope="col">@col.ColumnName</th>
+            }
+        </tr>
+        @for (int i = 0; i < Model.History.Rows.Count; i++)
+        {
+            <tr style="background-color:@(i % 2 == 0 ? "#F7F7DE" : "White");">
+                <td style="width:50px">@(i + 1)</td>
+                @foreach (System.Data.DataColumn col in Model.History.Columns)
+                {
+                    <td>@Model.History.Rows[i][col]</td>
+                }
+            </tr>
+        }
+    </table>
+}
+
+<br /><br />

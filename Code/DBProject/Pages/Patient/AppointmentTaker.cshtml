@@ -1,0 +1,45 @@
+@page
+@model DBProject.Pages.Patient.AppointmentTakerModel
+
+@section Head {
+    <title>Appointment Taker</title>
+}
+
+<!------------------Styling------------------>
+<link rel="stylesheet" href="/assets/css/grid-view.css" />
+
+<h1><strong style="margin:37%">Free Time Slots</strong></h1>
+<br /><br />
+
+<span id="PAppointment">@Model.Message</span>
+<br /><br />
+
+@if (Model.Slots != null)
+{
+    <form method="post">
+        <table class="GridView-d" cellspacing="0" cellpadding="4" rules="cols"
+               style="color:Black;background-color:White;border-color:#DEDFDE;border-width:1px;border-style:None;width:800px;border-collapse:collapse;">
+            <tr style="color:White;background-color:#6B696B;font-weight:bold;">
+                <th></th>
+                <th scope="col" style="width:50px">No.</th>
+                @foreach (System.Data.DataColumn col in Model.Slots.Columns)
+                {
+                    <th scope="col">@col.ColumnName</th>
+                }
+            </tr>
+            @for (int i = 0; i < Model.Slots.Rows.Count; i++)
+            {
+                <tr style="background-color:@(i % 2 == 0 ? "#F7F7DE" : "White");">
+                    <td><button type="submit" asp-page-handler="Select" asp-route-row="@i" class="btn btn-link" style="padding:0">Select</button></td>
+                    <td style="width:50px">@(i + 1)</td>
+                    @foreach (System.Data.DataColumn col in Model.Slots.Columns)
+                    {
+                        <td>@Model.Slots.Rows[i][col]</td>
+                    }
+                </tr>
+            }
+        </table>
+    </form>
+}
+
+<br /><br />

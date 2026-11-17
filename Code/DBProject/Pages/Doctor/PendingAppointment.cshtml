@@ -1,0 +1,43 @@
+@page
+@model DBProject.Pages.Doctor.PendingAppointmentModel
+
+@section Head {
+    <title>Pending Appointments</title>
+}
+
+<!------------------Styling------------------>
+<link rel="stylesheet" href="/assets/css/grid-view.css" />
+
+<h1><strong style="margin:25%">Pending Appointments</strong></h1>
+<br /><br />
+<div style="margin-left:300px">
+
+    @if (Model.Appointments != null)
+    {
+        <form method="post">
+            <table class="GridView-d" cellspacing="0" cellpadding="4" rules="cols"
+                   style="color:Black;background-color:White;border-color:#DEDFDE;border-width:1px;border-style:None;border-collapse:collapse;">
+                <tr style="color:White;background-color:#6B696B;font-weight:bold;">
+                    <th></th>
+                    @foreach (System.Data.DataColumn col in Model.Appointments.Columns)
+                    {
+                        <th scope="col">@col.ColumnName</th>
+                    }
+                </tr>
+                @for (int i = 0; i < Model.Appointments.Rows.Count; i++)
+                {
+                    <tr style="background-color:@(i % 2 == 0 ? "#F7F7DE" : "White");">
+                        <td>
+                            <button type="submit" asp-page-handler="Approve" asp-route-appointmentId="@Model.Appointments.Rows[i][0]" class="btn btn-link" style="padding:0">Select</button>
+                            <button type="submit" asp-page-handler="Delete" asp-route-appointmentId="@Model.Appointments.Rows[i][0]" class="btn btn-link" style="padding:0">Delete</button>
+                        </td>
+                        @foreach (System.Data.DataColumn col in Model.Appointments.Columns)
+                        {
+                            <td>@Model.Appointments.Rows[i][col]</td>
+                        }
+                    </tr>
+                }
+            </table>
+        </form>
+    }
+</div>

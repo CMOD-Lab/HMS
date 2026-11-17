@@ -1,0 +1,25 @@
+@page
+@model DBProject.Pages.Doctor.HistoryUpdateModel
+
+@section Head {
+    <title>Update History</title>
+}
+
+@if (Model.Message != null)
+{
+    <script>alert('@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Model.Message))');</script>
+}
+
+<h1>Update history  </h1>
+
+<form method="post">
+    <h4>Disease:</h4><input type="text" asp-for="Disease" />
+    <h4>Progress:</h4> <input type="text" asp-for="Progress" />
+    <h4>Prescription</h4><input type="text" asp-for="Prescription" />
+    <br />
+    <br />
+    <br />
+
+    <button type="submit" asp-page-handler="Save" style="font-weight:bold">Accept &amp; Save</button>
+    <button type="submit" asp-page-handler="Bill" formnovalidate style="font-weight:bold">Generate Bill</button>
+</form>

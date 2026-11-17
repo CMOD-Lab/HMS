@@ -441,15 +441,17 @@ if (typeof jQuery === 'undefined') {
       $next[0].offsetWidth // force reflow
       $active.addClass(direction)
       $next.addClass(direction)
+      var triggerSlid = function () {
+        that.$element.trigger(slidEvent)
+      }
+      var onTransitionEnd = function () {
+        $next.removeClass([type, direction].join(' ')).addClass('active')
+        $active.removeClass(['active', direction].join(' '))
+        that.sliding = false
+        setTimeout(triggerSlid, 0)
+      }
       $active
-        .one('bsTransitionEnd', function () {
-          $next.removeClass([type, direction].join(' ')).addClass('active')
-          $active.removeClass(['active', direction].join(' '))
-          that.sliding = false
-          setTimeout(function () {
-            that.$element.trigger(slidEvent)
-          }, 0)
-        })
+        .one('bsTransitionEnd', onTransitionEnd)
         .emulateTransitionEnd(Carousel.TRANSITION_DURATION)
     } else {
       $active.removeClass('active')

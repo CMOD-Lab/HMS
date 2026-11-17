@@ -1,0 +1,84 @@
+@page
+@model DBProject.Pages.Admin.ManageClinicModel
+
+@section Head {
+    <style type="text/css">
+
+        .outer {
+            margin-left: 20%;
+            display: inline-block;
+        }
+
+        .mydiv {
+            display: inline-block;
+        }
+    </style>
+}
+
+<div class="outer">
+
+    <form method="get" id="searchForm">
+
+        <div>
+
+            <h4 style="font:bold">Select Catagory :</h4>
+            <br />
+
+            <label><input type="radio" name="Category" value="D" checked="@(Model.Category != "P" && Model.Category != "O")" onchange="document.getElementById('SearchText').value='';this.form.submit();" /> Doctor</label>
+            <label><input type="radio" name="Category" value="P" checked="@(Model.Category == "P")" onchange="document.getElementById('SearchText').value='';this.form.submit();" /> Patient</label>
+            <label><input type="radio" name="Category" value="O" checked="@(Model.Category == "O")" onchange="document.getElementById('SearchText').value='';this.form.submit();" /> Other Staff</label>
+
+        </div>
+
+        <div>
+            <div>
+                <input type="text" id="SearchText" name="SearchText" value="@Model.SearchText" />
+                <button type="submit" class="btn btn-primary">Search</button>
+            </div>
+        </div>
+
+    </form>
+
+    <br />
+    <span style="font-weight:bold">@Model.Msg</span>
+
+    @if (Model.Manage != null)
+    {
+        <form method="post">
+            <input type="hidden" name="Category" value="@Model.Category" />
+            <table cellspacing="3" cellpadding="8" rules="rows" align="center"
+                   style="background-color:White;border-color:#336666;border-width:2px;border-style:Double;width:380px;border-collapse:collapse;">
+                <caption align="top">@Model.Caption</caption>
+                <tr style="color:White;background-color:#336666;font-weight:bold;">
+                    <th></th>
+                    @foreach (System.Data.DataColumn col in Model.Manage.Columns)
+                    {
+                        <th scope="col">@col.ColumnName</th>
+                    }
+                </tr>
+                @foreach (System.Data.DataRow row in Model.Manage.Rows)
+                {
+                    <tr style="color:#333333;background-color:White;border-style:solid;border-width:4px;">
+                        <td>
+                            <a asp-page="/Admin/ManageClinic" asp-route-Category="@Model.Category" asp-route-SelectedId="@row[0]">Select</a>
+                            <button type="submit" asp-page-handler="Delete" asp-route-id="@row[0]" class="btn btn-link" style="padding:0">Delete</button>
+                        </td>
+                        @foreach (System.Data.DataColumn col in Model.Manage.Columns)
+                        {
+                            <td>@row[col]</td>
+                        }
+                    </tr>
+                }
+            </table>
+        </form>
+    }
+
+</div>
+
+<div style="display:inline-block; float:right;margin-right:10%" id="mydiv">
+    @foreach (var d in Model.Details)
+    {
+        <p><b>@d.Key</b></p>
+        @d.Value
+    }
+</div>

@@ -1,0 +1,52 @@
+@page
+@model DBProject.Pages.Doctor.PatientHistoryModel
+
+@section Head {
+    <title>Patient History</title>
+}
+
+@if (Model.HasError)
+{
+    <script>alert('There was some error');</script>
+}
+
+<!------------------Styling------------------>
+<link rel="stylesheet" href="/assets/css/grid-view.css" />
+
+<h1><strong style="margin:25%">Today's Appointments</strong></h1>
+<br /><br />
+<div style="margin-left:150px">
+
+    @if (Model.Patients != null)
+    {
+        <form method="post">
+            <table class="GridView-d" cellspacing="0" cellpadding="4" rules="cols"
+                   style="color:Black;background-color:White;border-color:#DEDFDE;border-width:1px;border-style:None;width:1000px;border-collapse:collapse;">
+                <tr style="color:White;background-color:#6B696B;font-weight:bold;">
+                    <th></th>
+                    @foreach (System.Data.DataColumn col in Model.Patients.Columns)
+                    {
+                        <th scope="col">@col.ColumnName</th>
+                    }
+                </tr>
+                @for (int i = 0; i < Model.Patients.Rows.Count; i++)
+                {
+                    <tr style="background-color:@(i % 2 == 0 ? "#F7F7DE" : "White");">
+                        <td><button type="submit" asp-page-handler="Select" asp-route-appointmentId="@Model.Patients.Rows[i][0]" class="btn btn-link" style="padding:0">Select</button></td>
+                        @foreach (System.Data.DataColumn col in Model.Patients.Columns)
+                        {
+                            <td>@Model.Patients.Rows[i][col]</td>
+                        }
+                    </tr>
+                }
+            </table>
+        </form>
+    }
+
+</div>
+
+<br />
+<br />
+<br />
+<br />
+<br />

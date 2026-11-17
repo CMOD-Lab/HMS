@@ -1,0 +1,35 @@
+@page
+@model DBProject.Pages.Doctor.BillModel
+
+@section Head {
+    <title>Generate Bill</title>
+}
+
+@if (Model.HasError)
+{
+    <script>alert('There was some error');</script>
+}
+
+<h1>Your Bill For this Appointment is :      <span style="font-weight:bold;font-size:medium">@(Model.BillAmount ?? "Label")</span> </h1>
+
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+
+<form method="post">
+    &nbsp;&nbsp;&nbsp;&nbsp;<button type="submit" asp-page-handler="Paid" style="font-weight:bold">Bill Paid</button>
+
+    &nbsp;&nbsp;&nbsp;&nbsp;<button type="submit" asp-page-handler="Unpaid" style="font-weight:bold">Bill Unpaid</button>
+</form>

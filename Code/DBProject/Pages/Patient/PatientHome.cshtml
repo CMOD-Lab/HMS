@@ -1,0 +1,47 @@
+@page
+@model DBProject.Pages.Patient.PatientHomeModel
+
+@section Head {
+    <title>Patient's Home</title>
+}
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <script>alert(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ErrorMessage)));</script>
+}
+
+<div style="background-image:url(/assets/img/backgrounds/PatientHome.jpg); background-position:center; background-size:20px">
+
+    <br />
+    <h1><strong style="margin:37%">Your Information</strong></h1>
+    <br /><br />
+
+    <div style="margin-left: 70px">
+
+        <h4><strong>Name: </strong></h4>
+        <span id="PName" style="font-weight:bold;font-size:medium">@Model.PName</span>
+        <br /><br />
+
+        <h4><strong>Phone: </strong></h4>
+        <span id="PPhone" style="font-weight:bold;font-size:medium">@Model.PPhone</span>
+        <br /><br />
+
+        <h4><strong>Birth Date: </strong></h4>
+        <span id="PBirthDate" style="font-weight:bold;font-size:medium">@Model.PBirthDate</span>
+        <br /><br />
+
+        <h4><strong>Age: </strong></h4>
+        <span id="PatientAge" style="font-weight:bold;font-size:medium">@Model.PatientAge</span>
+        <br /><br />
+
+        <h4><strong>Gender:</strong></h4>
+        <span id="PGender" style="font-weight:bold;font-size:medium">@Model.PGender</span>
+        <br /><br />
+
+        <h4><strong>Address: </strong></h4>
+        <span id="PAddress" style="font-weight:bold;font-size:medium">@Model.PAddress</span>
+        <br /><br />
+
+    </div>
+
+</div>

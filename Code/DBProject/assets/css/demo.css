@@ -1,4 +1,7 @@
-@import url('http://fonts.googleapis.com/css?family=Open+Sans:400,700');
+/* The insecure, SRI-less third-party @import of Google Fonts (Open Sans) was removed.
+   CSS @import cannot carry integrity/crossorigin attributes. Font CSS must be hosted on
+   S3 behind CloudFront and referenced from the page via a <link rel="stylesheet" href="https://<cloudfront-domain>/css/open-sans.css"
+   integrity="sha384-<build-time-hash>" crossorigin="anonymous"> tag. */
 
 *{
 	padding:0;

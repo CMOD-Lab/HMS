@@ -1,0 +1,24 @@
+@model System.Data.DataTable
+@* Renders a DataTable as an HTML table (replacement for the Web Forms GridView control). *@
+<table cellspacing="@(ViewData["CellSpacing"] ?? 0)" cellpadding="@(ViewData["CellPadding"] ?? 4)" rules="cols"
+       style="color:Black;background-color:White;border-color:#DEDFDE;border-width:1px;border-style:none;border-collapse:collapse;">
+    @if (ViewData["Caption"] != null)
+    {
+        <caption>@ViewData["Caption"]</caption>
+    }
+    <tr style="color:White;background-color:#6B696B;font-weight:bold;">
+        @foreach (System.Data.DataColumn col in Model.Columns)
+        {
+            <th scope="col">@col.ColumnName</th>
+        }
+    </tr>
+    @for (int i = 0; i < Model.Rows.Count; i++)
+    {
+        <tr style="background-color:@(i % 2 == 0 ? "#F7F7DE" : "White");">
+            @foreach (System.Data.DataColumn col in Model.Columns)
+            {
+                <td>@Model.Rows[i][col]</td>
+            }
+        </tr>
+    }
+</table>

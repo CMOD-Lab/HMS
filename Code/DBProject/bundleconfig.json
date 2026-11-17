@@ -1,0 +1,16 @@
+[
+  {
+    "outputFileName": "assets/dist/site.bundle.min.css",
+    "inputFiles": [
+      "assets/font-awesome/css/font-awesome.css",
+      "assets/css/form-elements.css",
+      "assets/css/style.css",
+      "assets/css/demo.css",
+      "assets/css/footer-distributed-with-address-and-phones.css",
+      "assets/css/patient-style.css",
+      "assets/css/grid-view.css"
+    ],
+    "minify": { "enabled": true },
+    "sourceMap": false
+  }
+]

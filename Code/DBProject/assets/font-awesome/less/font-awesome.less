@@ -3,6 +3,11 @@
  *  License - http://fontawesome.io/license (Font: SIL OFL 1.1, CSS: MIT License)
  */
 
+// Cloud delivery note (cr-css-1006): the partials imported below are compiled into a SINGLE
+// font-awesome.css at build time and then concatenated/minified with the other site CSS
+// (see bundleconfig.json -> assets/dist/site.bundle.min.css). The bundle is published to S3 and
+// served through AWS CloudFront with HTTP/2 enabled. Do not reference partials individually.
+
 @import "variables.less";
 @import "mixins.less";
 @import "path.less";

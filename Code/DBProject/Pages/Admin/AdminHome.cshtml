@@ -1,0 +1,34 @@
+@page
+@model DBProject.Pages.Admin.AdminHomeModel
+
+<br />
+<h1 style="font-family: 'Times New Roman', Times, serif;border-radius:5px; text-decoration: underline; background-color: #CCCCCC"><strong style="margin:37%">Clinic Stats</strong></h1>
+<br /><br />
+
+<div style="margin-left: 70px">
+
+    <h4><strong>Total Number of Regstered Doctors: </strong></h4>
+    <span style="font-weight:bold;font-size:medium">@Model.TotalPatients</span>
+    <br /><br />
+
+    <h4><strong>Total Registered Patients: </strong></h4>
+    <span style="font-weight:bold;font-size:medium">@Model.TotalDoctors</span>
+    <br /><br />
+
+    <h4><strong>Total Income: </strong></h4>
+    <span style="font-weight:bold;font-size:medium">@Model.TotalIncome</span>
+    <br /><br />
+
+    <h3><strong style="margin:5%">Current Appointments</strong></h3>
+
+    <partial name="_DataTable" model="Model.AppointmentView" />
+
+</div>
+
+<div style="margin:20%">
+
+    <h2><strong style="margin:20%">Department Information</strong></h2>
+
+    <partial name="_DataTable" model="Model.DepartmentView" />
+
+</div>
