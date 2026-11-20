@@ -6,6 +6,10 @@ using System.Web.UI.WebControls;
 using System.Web.UI;
 using System.Data;
 using System.Data.SqlClient;
+using Amazon;
+using Amazon.RDS.Util;
+using Amazon.SimpleSystemsManagement;
+using Amazon.SimpleSystemsManagement.Model;
 
  
 namespace DBProject.DAL
@@ -13,9 +17,14 @@ namespace DBProject.DAL
 	//Database Layer of 3 tier architecture
 	public class myDAL
     {
-		//connection string of the server database
-        private static readonly string connString =
-            System.Configuration.ConfigurationManager.ConnectionStrings["sqlCon1"].ConnectionString;
+		// Database connections are created via DatabaseConnectionFactory, which
+		// reads configuration from environment variables and AWS Systems Manager
+		// Parameter Store (cr-dotnet-0010 remediation: eliminates Web.config
+		// transformation files). No connection string is stored in Web.config.
+		private static SqlConnection CreateConnection()
+        {
+            return DatabaseConnectionFactory.CreateConnection();
+        }
 
 
 
@@ -33,7 +42,7 @@ namespace DBProject.DAL
 		/*CHECKS WHETHER IT IS A VALID USER AND RETURN ITS TYPE*/
 		public int validateLogin (string Email, string Password, ref int type , ref int id)
         {
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
 
             try
@@ -88,7 +97,7 @@ namespace DBProject.DAL
         public int validateUser (string Name, string BirthDate, string Email , string Password , string PhoneNo , string gender , string Address, ref int id)
         {
 
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
 
             try
@@ -165,7 +174,7 @@ namespace DBProject.DAL
         public int DoctorEmailAlreadyExist(string Email)
         {
             int status = 0;
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
 
 
@@ -198,7 +207,7 @@ namespace DBProject.DAL
         public void AddDoctor(string Name, string Email, string Password, string BirthDate, int dept, string Phone, char gender, string Address, int exp, int salary, int Charges_per_visit, string spec, string qual)
         {
 
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
 
 
@@ -249,7 +258,7 @@ namespace DBProject.DAL
         public int AddStaff(string Name, string BirthDate, string Phone, char gender, string Address, int salary, string Qual, string Designation)
         {
 
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
 
             SqlCommand cmd = new SqlCommand("AddStaff", con);
@@ -304,7 +313,7 @@ namespace DBProject.DAL
         public void GetAdminHomeInformation(ref DataTable[] arrTable)
         {
 
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
 
 
@@ -337,7 +346,7 @@ namespace DBProject.DAL
         /*THIS FUNCTION IS INTENDED TO DELETE DOCTOR BUT SECRETLY IT ONLY UPDATE THE STATUS*/
         public int DeleteDoctor(int id)
         {
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
 
             try
@@ -363,7 +372,7 @@ namespace DBProject.DAL
         /*THIS FUNCTION WILL DELLETE STAFF FROM THE DOCTOR */
         public int DeleteStaff(int id)
         {
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
 
             try
@@ -387,7 +396,7 @@ namespace DBProject.DAL
         public void LoadDoctor(ref DataTable table, String SearchQuery)
         {
 
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             SqlCommand cmd;
             con.Open();
 
@@ -424,7 +433,7 @@ namespace DBProject.DAL
         public void LoadPatient(ref DataTable table, String SearchQuery)
         {
 
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             SqlCommand cmd;
             con.Open();
 
@@ -457,7 +466,7 @@ namespace DBProject.DAL
         public void LoadOtherStaff(ref DataTable table, String SearchQuery)
         {
 
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             SqlCommand cmd;
             con.Open();
 
@@ -485,7 +494,7 @@ namespace DBProject.DAL
 
         public int GETPATIENT(int pid, ref string name, ref string phone, ref string address, ref string birthDate, ref int age, ref string gender)
         {
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
 
 
@@ -554,7 +563,7 @@ namespace DBProject.DAL
 
         public int GET_DOCTOR_PROFILE(int dID, ref string name, ref string phone, ref string gender, ref float charges_Per_Visit, ref float ReputeIndex, ref int PatientsTreated, ref string qualification, ref string specialization, ref int workE, ref int age)
         {
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
 
 
@@ -629,7 +638,7 @@ namespace DBProject.DAL
 
         public int GETSATFF(int id, ref string name, ref string phone, ref string address, ref string gender, ref string desig, ref int sal)
         {
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
 
             SqlCommand cmd1 = new SqlCommand("GET_STAFF", con);
@@ -695,7 +704,7 @@ namespace DBProject.DAL
 
         public int patientInfoDisplayer(int pid, ref string name, ref string phone, ref string address, ref string birthDate, ref int age, ref string gender)
 		{
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 
 
@@ -762,7 +771,7 @@ namespace DBProject.DAL
 		public int getBillHistory(int id, ref DataTable result)
 		{
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd1;
 
@@ -820,7 +829,7 @@ namespace DBProject.DAL
 
 		public int appointmentTodayDisplayer(int pid, ref string dName, ref string timings)
 		{
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd1;
 
@@ -882,7 +891,7 @@ namespace DBProject.DAL
 		public int getTreatmentHistory(int id, ref DataTable result)
 		{
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd1;
 
@@ -932,7 +941,7 @@ namespace DBProject.DAL
 		public int getdeptInfo(ref DataTable result)
 		{
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd1;
 
@@ -972,7 +981,7 @@ namespace DBProject.DAL
 		public int getDeptDoctorInfo(string deptName, ref DataTable result)
 		{
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd1;
 
@@ -1027,7 +1036,7 @@ namespace DBProject.DAL
 
 		public int doctorInfoDisplayer(int dID, ref string name, ref string phone, ref string gender, ref float charges_Per_Visit, ref float ReputeIndex, ref int PatientsTreated, ref string qualification, ref string specialization, ref int workE, ref int age)
 		{
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 
 
@@ -1106,7 +1115,7 @@ namespace DBProject.DAL
 		public int getFreeSlots(int dID, int pID, ref DataTable result)
 		{
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd1;
 
@@ -1161,7 +1170,7 @@ namespace DBProject.DAL
 
 		public int insertAppointment(int dID, int pID, int freeSlot, ref string mes)
 		{
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd1;
 
@@ -1218,7 +1227,7 @@ namespace DBProject.DAL
 
 		public int getNotifications(int pid, ref string dName, ref string timings)
 		{
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd1;
 
@@ -1285,7 +1294,7 @@ namespace DBProject.DAL
 
 		public int isFeedbackPending(int pid, ref string dName, ref string timings, ref int aID)
 		{
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd1;
 
@@ -1351,7 +1360,7 @@ namespace DBProject.DAL
 
 		public int givePendingFeedback(int aID)
 		{
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd1;
 
@@ -1419,7 +1428,7 @@ namespace DBProject.DAL
 		{
 
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd;
 
@@ -1462,7 +1471,7 @@ namespace DBProject.DAL
 		{
 
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			
 			try
@@ -1502,7 +1511,7 @@ namespace DBProject.DAL
 		/*THIS FUNCTION WILL BE CALLED WHEN DOCTOR APPROVE THE REQUEST OF PATIENT*/
 		public int UpdateAppointment_DAL(int Appointmentid)
 		{
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd;
 			int result = 0;
@@ -1533,7 +1542,7 @@ namespace DBProject.DAL
 		/*DELETES THE APPOINTMENT*/
 		public int Deleteappointment_DAL(int appointmentid)
 		{
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd;
 			
@@ -1570,7 +1579,7 @@ namespace DBProject.DAL
 		{
 
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 
 			SqlCommand cmd;
@@ -1617,7 +1626,7 @@ namespace DBProject.DAL
 		/*UPDATE THE PRESCRIPTION WHEN APPOINTMENT IS GOING ON BY DOCTOR*/
 		public int update_prescription_DAL(int did, int appointid, string disease, string progres, string prescrip)
 		{
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd;
 			try
@@ -1653,7 +1662,7 @@ namespace DBProject.DAL
 		public int generate_bill_DAL(int docid, ref DataTable result)
 		{
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd;
 
@@ -1695,7 +1704,7 @@ namespace DBProject.DAL
 		public void paid_bill_DAL(int did, int appoint)
 		{
 
-			SqlConnection con = new SqlConnection(connString);
+			SqlConnection con = CreateConnection();
 			con.Open();
 			SqlCommand cmd;
 			
@@ -1714,7 +1723,7 @@ namespace DBProject.DAL
         public void Unpaid_bill_DAL(int did, int appoint)
         {
 
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
             SqlCommand cmd;
 
@@ -1733,7 +1742,7 @@ namespace DBProject.DAL
         public int getPHistory(int id, ref DataTable result)
         {
             DataSet ds = new DataSet();
-            SqlConnection con = new SqlConnection(connString);
+            SqlConnection con = CreateConnection();
             con.Open();
             SqlCommand cmd1;
 

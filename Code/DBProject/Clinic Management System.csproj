@@ -15,7 +15,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>DBProject</RootNamespace>
     <AssemblyName>DBProject</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <UseIISExpress>true</UseIISExpress>
     <IISExpressSSLPort />
     <IISExpressAnonymousAuthentication />
@@ -93,6 +93,37 @@
     <Reference Include="System.Configuration" />
     <Reference Include="System.Web.Services" />
     <Reference Include="System.EnterpriseServices" />
+    <!-- AWS SDK packages for RDS Proxy IAM authentication, Parameter Store, Secrets Manager -->
+    <Reference Include="AWSSDK.Core, Version=4.1.1.2, Culture=neutral, PublicKeyToken=150739fb0964ae0c, processorArchitecture=MSIL">
+      <HintPath>..\packages\AWSSDK.Core.4.1.1.2\lib\net45\AWSSDK.Core.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="AWSSDK.RDS, Version=4.1.1.0, Culture=neutral, PublicKeyToken=150739fb0964ae0c, processorArchitecture=MSIL">
+      <HintPath>..\packages\AWSSDK.RDS.4.1.1\lib\net45\AWSSDK.RDS.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="AWSSDK.SimpleSystemsManagement, Version=4.1.1.2, Culture=neutral, PublicKeyToken=150739fb0964ae0c, processorArchitecture=MSIL">
+      <HintPath>..\packages\AWSSDK.SimpleSystemsManagement.4.1.1.2\lib\net45\AWSSDK.SimpleSystemsManagement.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="AWSSDK.SecretsManager, Version=4.1.1.2, Culture=neutral, PublicKeyToken=150739fb0964ae0c, processorArchitecture=MSIL">
+      <HintPath>..\packages\AWSSDK.SecretsManager.4.1.1.2\lib\net45\AWSSDK.SecretsManager.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="AWSSDK.Extensions.NETCore.Setup, Version=4.1.0.3, Culture=neutral, PublicKeyToken=150739fb0964ae0c, processorArchitecture=MSIL">
+      <HintPath>..\packages\AWSSDK.Extensions.NETCore.Setup.4.1.0.3\lib\net45\AWSSDK.Extensions.NETCore.Setup.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- Redis Session State Provider for distributed session storage -->
+    <Reference Include="Microsoft.Web.RedisSessionStateProvider, Version=5.0.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Web.RedisSessionStateProvider.5.0.4\lib\net45\Microsoft.Web.RedisSessionStateProvider.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- Dapper for data access with RDS Proxy -->
+    <Reference Include="Dapper, Version=2.1.89.0, Culture=neutral, PublicKeyToken=cec31d1c1d9d0d6f, processorArchitecture=MSIL">
+      <HintPath>..\packages\Dapper.2.1.89\lib\net45\Dapper.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Content Include="Admin\AddStaff.aspx" />
@@ -213,6 +244,8 @@
       <DependentUpon>CurrentAppointment.aspx</DependentUpon>
     </Compile>
     <Compile Include="DAL\myDAL.cs" />
+    <Compile Include="DAL\DatabaseConnectionFactory.cs" />
+    <Compile Include="Security\CspHeadersHttpModule.cs" />
     <Compile Include="Doctor\DoctorHome.aspx.cs">
       <DependentUpon>DoctorHome.aspx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>
