@@ -1,4 +1,6 @@
-﻿<%@ Page Title="" Language="C#" MasterPageFile="~/Patient/PatientMaster.Master" AutoEventWireup="true" CodeBehind="BillsHistory.aspx.cs" Inherits="DBProject.BillsHistory" %>
+﻿<!-- Migration note (cr-dotnet-0026): This Web Forms .aspx page will be migrated to an
+     ASP.NET Core Razor Page (.cshtml + PageModel). -->
+<%@ Page Title="" Language="C#" MasterPageFile="~/Patient/PatientMaster.Master" AutoEventWireup="true" CodeBehind="BillsHistory.aspx.cs" Inherits="DBProject.BillsHistory" async="true" %>
 
 
 <asp:Content ID="Content1" ContentPlaceHolderID="head" runat="server">
@@ -22,6 +24,7 @@
     <asp:Label ID="BHistory" runat="server"></asp:Label>
     <br /><br />
 
+    <!-- cr-dotnet-1034: Async DataBind - code-behind uses RegisterAsyncTask for async DataBind -->
     <asp:GridView ID="BHistoryGrid" runat="server" class = "GridView-d" CellPadding="4" ForeColor="Black" GridLines="Vertical" Width="800px"
         EnableViewState ="False" BackColor="White" BorderColor="#DEDFDE" BorderStyle="None" BorderWidth="1px" 
         >

@@ -2,19 +2,26 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
+// Migration note (cr-dotnet-0026): System.Web.UI and System.Web.UI.WebControls are
+// Web Forms namespaces. In the ASP.NET Core migration, these will be replaced by
+// Microsoft.AspNetCore.Mvc.RazorPages / Microsoft.AspNetCore.Mvc.
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using DBProject.DAL;
 using System.Data;
+using System.Threading.Tasks;
 
 
 namespace DBProject
 {
+    // Migration note (cr-dotnet-0026): In ASP.NET Core, this class would become a
+    // Razor Page PageModel instead of inheriting from System.Web.UI.Page.
     public partial class ViewDoctors : System.Web.UI.Page
     {
         protected void Page_Load(object sender, EventArgs e)
         {
-            Session["dID"] = "";
+            // cr-dotnet-0045: Redis-backed distributed session
+            SessionHelper.Set("dID", "");
             deptDoctorInfo(sender, e);
         }
 
@@ -27,8 +34,12 @@ namespace DBProject
 
                 string dID = TDoctorGrid.Rows[num].Cells[2].Text;
   
-                Session["dID"] = dID;
+                // cr-dotnet-0045: Redis-backed distributed session
+                // cr-dotnet-0126: Stateless session using Redis cache instead of sticky sessions
+                SessionHelper.Set("dID", dID);
 
+                // cr-dotnet-0126: Stateless redirect using Redis cache instead of sticky sessions
+                SessionHelper.Set("RedirectTarget", "DoctorProfile.aspx");
                 Response.BufferOutput = true;
                 Response.Redirect("DoctorProfile.aspx");
 
@@ -46,7 +57,8 @@ namespace DBProject
 
             DataTable DT = new DataTable();
 
-            string deptName = (string) Session["deptOriginal"];
+            // cr-dotnet-0045: Redis-backed distributed session
+            string deptName = (string) SessionHelper.Get("deptOriginal");
 
             int status = objmyDAl.getDeptDoctorInfo(deptName, ref DT);
 
@@ -58,9 +70,13 @@ namespace DBProject
 
             else
             {
-                TDoctor.Text = "Following are our Specialized Doctors of " + Session["deptOriginal"] + " Department:";
+                TDoctor.Text = "Following are our Specialized Doctors of " + SessionHelper.Get("deptOriginal") + " Department:";
                 TDoctorGrid.DataSource = DT;
-                TDoctorGrid.DataBind();
+                // cr-dotnet-1034: Async DataBind using RegisterAsyncTask
+                RegisterAsyncTask(new PageAsyncTask(async () =>
+                {
+                    await Task.Run(() => TDoctorGrid.DataBind());
+                }));
             }
 
             return;

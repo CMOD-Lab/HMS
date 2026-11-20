@@ -1,4 +1,6 @@
-﻿<%@ Page Title="" Language="C#" MasterPageFile="~/Doctor/doctormaster.Master" AutoEventWireup="true" CodeBehind="Bill.aspx.cs" Inherits="doctor.bill" %>
+﻿<!-- Migration note (cr-dotnet-0026): This Web Forms .aspx page will be migrated to an
+     ASP.NET Core Razor Page (.cshtml + PageModel). -->
+<%@ Page Title="" Language="C#" MasterPageFile="~/Doctor/doctormaster.Master" AutoEventWireup="true" CodeBehind="Bill.aspx.cs" Inherits="doctor.bill" %>
 
 <asp:Content ID="Content1" ContentPlaceHolderID="head" runat="server">
 

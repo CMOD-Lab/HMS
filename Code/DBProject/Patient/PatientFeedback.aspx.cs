@@ -2,6 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
+// Migration note (cr-dotnet-0026): System.Web.UI and System.Web.UI.WebControls are
+// Web Forms namespaces. In the ASP.NET Core migration, these will be replaced by
+// Microsoft.AspNetCore.Mvc.RazorPages / Microsoft.AspNetCore.Mvc.
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using DBProject.DAL;
@@ -12,13 +15,16 @@ using System.Data;
 
 namespace DBProject
 {
+    // Migration note (cr-dotnet-0026): In ASP.NET Core, this class would become a
+    // Razor Page PageModel instead of inheriting from System.Web.UI.Page.
     public partial class PatientFeedback : System.Web.UI.Page
     {
         protected void Page_Load(object sender, EventArgs e)
         {
 			if (!IsPostBack)
 			{
-				Session["aID"] = "";
+				// cr-dotnet-0045: Redis-backed distributed session
+			SessionHelper.Set("aID", "");
 				pendingFeedback(sender, e);
 			}
         }
@@ -32,7 +38,8 @@ namespace DBProject
         {
             myDAL objmyDAl = new myDAL();
 
-            int pid = (int)Session["idoriginal"];
+            // cr-dotnet-0045: Redis-backed distributed session
+            int pid = (int)SessionHelper.Get("idoriginal");
 
             string dName = "";
             string timings = "";
@@ -53,7 +60,9 @@ namespace DBProject
 
             else
             {
-                Session["aID"] = aID;
+                // cr-dotnet-0045: Redis-backed distributed session
+                // cr-dotnet-0126: Stateless session using Redis cache instead of sticky sessions
+                SessionHelper.Set("aID", aID);
 
                 FDoctor.Text = "Your feedback for the appointment with Doctor " + dName + " is pending. Kindly give it.";
                 FTimings.Text = "The Appointment Timings were : " + timings;
@@ -76,7 +85,8 @@ namespace DBProject
         {
             myDAL objmyDAl = new myDAL();
 
-            int aID = (int)Session["aID"];
+            // cr-dotnet-0045: Redis-backed distributed session
+            int aID = (int)SessionHelper.Get("aID");
 
 
             int rating = Convert.ToInt32(List.SelectedItem.Value);

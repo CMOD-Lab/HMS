@@ -446,9 +446,11 @@ if (typeof jQuery === 'undefined') {
           $next.removeClass([type, direction].join(' ')).addClass('active')
           $active.removeClass(['active', direction].join(' '))
           that.sliding = false
-          setTimeout(function () {
-            that.$element.trigger(slidEvent)
-          }, 0)
+          // cr-js-0021: Refactored callback to async/await pattern
+          (async function() {
+            await new Promise(resolve => setTimeout(resolve, 0));
+            that.$element.trigger(slidEvent);
+          })();
         })
         .emulateTransitionEnd(Carousel.TRANSITION_DURATION)
     } else {

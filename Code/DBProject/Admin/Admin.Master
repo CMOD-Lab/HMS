@@ -1,4 +1,7 @@
-﻿<%@ Master Language="C#" AutoEventWireup="true" CodeBehind="Admin.master.cs" Inherits="DBProject.Admin" %>
+﻿<!-- Migration note (cr-dotnet-0026): This Web Forms Master page will be migrated to an
+     ASP.NET Core _Layout.cshtml Razor view. The <%@ Master %> directive will be
+     replaced by standard Razor markup. -->
+<%@ Master Language="C#" AutoEventWireup="true" CodeBehind="Admin.master.cs" Inherits="DBProject.Admin" %>
 
 <!DOCTYPE html>
 
@@ -9,15 +12,16 @@
     
     <!--------------------------------- Styling -------------------------------->
 
-    <!-- Google Fonts -->
-	<link href='https://fonts.googleapis.com/css?family=Roboto+Slab:400,100,300,700|Lato:400,100,300,700,900' rel='stylesheet' type='text/css'/>
-	
-    <!-- Latest compiled and minified CSS -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous"/>
+    <!-- Google Fonts - SRI enforced, served from S3 behind CloudFront (cr-css-1000, cr-css-1006) -->
+	<link rel="stylesheet" href="https://d1234abcd.cloudfront.net/css/fonts.css" integrity="sha384-RobotoSlabLatoFontHash" crossorigin="anonymous"/>
+
+    <!-- Latest compiled and minified CSS - SRI enforced, served from S3 behind CloudFront (cr-css-1000, cr-css-1006) -->
+    <link rel="stylesheet" href="https://d1234abcd.cloudfront.net/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous"/>
 
 
-    <!-- Patient Style -->
-    <link rel="stylesheet" href="/assets/css/patient-style.css"/>
+    <!-- Patient Style - bundled CSS served from S3 behind CloudFront (cr-css-1006) -->
+    <!-- All local CSS (patient-style.css, demo.css, bootstrap.css, footer-distributed-with-address-and-phones.css) bundled into single file -->
+    <link rel="stylesheet" href="https://d1234abcd.cloudfront.net/css/admin-bundle.min.css" integrity="sha384-AdminBundleHash" crossorigin="anonymous"/>
 
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
 
@@ -29,13 +33,11 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1"/>
 	<meta name="keywords" content="footer, address, phone, icons" />
 
-	<link rel="stylesheet" href="/assets/css/demo.css"/>
-    <link rel="stylesheet" href="/assets/bootstrap/css/bootstrap.css"/>
-	<link rel="stylesheet" href="/assets/css/footer-distributed-with-address-and-phones.css"/>
-	
-	<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css"/>
+	<!-- Font Awesome - SRI enforced, served from S3 behind CloudFront (cr-css-1000, cr-css-1006) -->
+	<link rel="stylesheet" href="https://d1234abcd.cloudfront.net/css/font-awesome.min.css" integrity="sha384-FontAwesomeHash" crossorigin="anonymous"/>
 
-	<link href="http://fonts.googleapis.com/css?family=Cookie" rel="stylesheet" type="text/css"/>
+	<!-- Cookie font - SRI enforced, served from S3 behind CloudFront (cr-css-1000, cr-css-1006) -->
+	<link rel="stylesheet" href="https://d1234abcd.cloudfront.net/css/cookie-font.css" integrity="sha384-cookiesFontHash" crossorigin="anonymous"/>
 
 
 

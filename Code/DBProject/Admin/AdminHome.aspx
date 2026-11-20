@@ -1,4 +1,6 @@
-﻿<%@ Page Title="" Language="C#" MasterPageFile="~/Admin/Admin.Master" AutoEventWireup="true" CodeBehind="AdminHome.aspx.cs" Inherits="DBProject.AdminHome" %>
+﻿<!-- Migration note (cr-dotnet-0026): This Web Forms .aspx page will be migrated to an
+     ASP.NET Core Razor Page (.cshtml + PageModel). -->
+<%@ Page Title="" Language="C#" MasterPageFile="~/Admin/Admin.Master" AutoEventWireup="true" CodeBehind="AdminHome.aspx.cs" Inherits="DBProject.AdminHome" async="true" %>
 
 
 
@@ -44,6 +46,7 @@
         
         <h3><strong style="margin:5%">Current Appointments</strong></h3>
         
+        <!-- cr-dotnet-1034: Async DataBind - code-behind uses RegisterAsyncTask for async DataBind -->
         <asp:gridview ID="Appointment_view" runat="server" CellPadding="4" ForeColor="Black" GridLines="Vertical" BackColor="White" BorderColor="#DEDFDE" BorderStyle="None" BorderWidth="1px">
             <AlternatingRowStyle BackColor="White" />
             <FooterStyle BackColor="#CCCC99" />
@@ -69,6 +72,7 @@
 
         <h2><strong style="margin:20%">Department Information</strong></h2>
 
+        <!-- cr-dotnet-1034: Async DataBind - code-behind uses RegisterAsyncTask for async DataBind -->
         <asp:gridview ID="department_View" runat="server" CellPadding="4" ForeColor="Black" Height="50px" BackColor="White" BorderColor="#DEDFDE" BorderStyle="None" BorderWidth="1px" GridLines="Vertical">
             <AlternatingRowStyle BackColor="White" />
             <FooterStyle BackColor="#CCCC99" />

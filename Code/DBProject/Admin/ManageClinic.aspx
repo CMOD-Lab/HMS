@@ -1,4 +1,6 @@
-﻿<%@ Page Title="" Language="C#" MasterPageFile="~/Admin/Admin.Master" AutoEventWireup="true" CodeBehind="ManageClinic.aspx.cs" Inherits="DBProject.ManageClinic" %>
+﻿<!-- Migration note (cr-dotnet-0026): This Web Forms .aspx page will be migrated to an
+     ASP.NET Core Razor Page (.cshtml + PageModel). -->
+<%@ Page Title="" Language="C#" MasterPageFile="~/Admin/Admin.Master" AutoEventWireup="true" CodeBehind="ManageClinic.aspx.cs" Inherits="DBProject.ManageClinic" async="true" %>
 
 <script runat="server">
 
@@ -82,6 +84,7 @@
         <asp:Label ID="Msg" runat="server" Font-Bold="True"></asp:Label>
         
 
+            <!-- cr-dotnet-1034: Async DataBind - code-behind uses RegisterAsyncTask for async DataBind -->
             <asp:GridView 
             
             ID="Manage"

@@ -2,19 +2,26 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
+// Migration note (cr-dotnet-0026): System.Web.UI and System.Web.UI.WebControls are
+// Web Forms namespaces. In the ASP.NET Core migration, these will be replaced by
+// Microsoft.AspNetCore.Mvc.RazorPages / Microsoft.AspNetCore.Mvc.
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using DBProject.DAL;
 using System.Data;
+using System.Threading.Tasks;
 
 
 namespace DBProject
 {
+    // Migration note (cr-dotnet-0026): In ASP.NET Core, this class would become a
+    // Razor Page PageModel instead of inheriting from System.Web.UI.Page.
     public partial class TakeAppointment : System.Web.UI.Page
     {
         protected void Page_Load(object sender, EventArgs e)
         {
-            Session["deptOriginal"] = "";
+            // cr-dotnet-0045: Redis-backed distributed session
+            SessionHelper.Set("deptOriginal", "");
             deptInfo(sender, e);
 
         }
@@ -28,8 +35,12 @@ namespace DBProject
 
                 string deptName = TDeptGrid.Rows[num].Cells[2].Text;
 
-                Session["deptOriginal"] = deptName;
+                // cr-dotnet-0045: Redis-backed distributed session
+                // cr-dotnet-0126: Stateless session using Redis cache instead of sticky sessions
+                SessionHelper.Set("deptOriginal", deptName);
 
+                // cr-dotnet-0126: Stateless redirect using Redis cache instead of sticky sessions
+                SessionHelper.Set("RedirectTarget", "ViewDoctors.aspx");
                 Response.BufferOutput = true;
                 Response.Redirect("ViewDoctors.aspx");
 
@@ -60,7 +71,11 @@ namespace DBProject
             {
                 TDept.Text = "Following are the departments available at our Clinic : ";
                 TDeptGrid.DataSource = DT;
-                TDeptGrid.DataBind();
+                // cr-dotnet-1034: Async DataBind using RegisterAsyncTask
+                RegisterAsyncTask(new PageAsyncTask(async () =>
+                {
+                    await Task.Run(() => TDeptGrid.DataBind());
+                }));
             }
 
             return;

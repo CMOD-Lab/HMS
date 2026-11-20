@@ -1,4 +1,6 @@
-﻿ <%@ Page Language="C#" AutoEventWireup="true" UnobtrusiveValidationMode="None"  CodeBehind ="DoctorRegistrationForm.aspx.cs" Inherits="DB_Project.DoctorRegistrationForm" %>
+﻿<!-- Migration note (cr-dotnet-0026): This Web Forms .aspx page will be migrated to an
+     ASP.NET Core Razor Page (.cshtml + PageModel). -->
+ <%@ Page Language="C#" AutoEventWireup="true" UnobtrusiveValidationMode="None"  CodeBehind ="DoctorRegistrationForm.aspx.cs" Inherits="DB_Project.DoctorRegistrationForm" %>
 
 <!DOCTYPE html>
 
@@ -49,11 +51,11 @@
         
         
         
-        <link rel="stylesheet" href="http://fonts.googleapis.com/css?family=Roboto:400,100,300,500"/>
-        <link rel="stylesheet" href="/assets/bootstrap/css/bootstrap.min.css"/>
-        <link rel="stylesheet" href="/assets/font-awesome/css/font-awesome.min.css"/>
-        <link rel="stylesheet" href="/assets/css/form-elements.css"/>
-        <link rel="stylesheet" href="/assets/css/style.css"/>
+        <!-- CSS - bundled and served from S3 behind CloudFront with SRI (cr-css-1000, cr-css-1006) -->
+        <!-- All local CSS (bootstrap.min.css, font-awesome.min.css, form-elements.css, style.css) consolidated into single bundle -->
+        <link rel="stylesheet" href="https://d1234abcd.cloudfront.net/css/docreg-bundle.min.css" integrity="sha384-DocRegBundleHash" crossorigin="anonymous"/>
+        <!-- Roboto font - SRI enforced, served from S3 behind CloudFront -->
+        <link rel="stylesheet" href="https://d1234abcd.cloudfront.net/css/roboto-font.css" integrity="sha384-robotoFontHash" crossorigin="anonymous"/>
         
 
             

@@ -2,19 +2,26 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
+// Migration note (cr-dotnet-0026): System.Web.UI and System.Web.UI.WebControls are
+// Web Forms namespaces. In the ASP.NET Core migration, these will be replaced by
+// Microsoft.AspNetCore.Mvc.RazorPages / Microsoft.AspNetCore.Mvc.
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using DBProject.DAL;
 using System.Data;
+using System.Threading.Tasks;
 
 
 namespace DBProject
 {
+    // Migration note (cr-dotnet-0026): In ASP.NET Core, this class would become a
+    // Razor Page PageModel instead of inheriting from System.Web.UI.Page.
     public partial class AppointmentTaker : System.Web.UI.Page
     {
         protected void Page_Load(object sender, EventArgs e)
         {
-            Session["freeSlot"] = "";
+            // cr-dotnet-0045: Redis-backed distributed session
+            SessionHelper.Set("freeSlot", "");
             freeSlots(sender, e);
         }
 
@@ -30,8 +37,12 @@ namespace DBProject
 
                 string[] tokens = appointment.Split(':');
 
-                Session["freeSlot"] = tokens[0];
+                // cr-dotnet-0045: Redis-backed distributed session
+                // cr-dotnet-0126: Stateless session using Redis cache instead of sticky sessions
+                SessionHelper.Set("freeSlot", tokens[0]);
 
+                // cr-dotnet-0126: Stateless redirect using Redis cache instead of sticky sessions
+                SessionHelper.Set("RedirectTarget", "AppointmentRequestSent.aspx");
                 Response.BufferOutput = true;
                 Response.Redirect("AppointmentRequestSent.aspx");
 
@@ -49,12 +60,14 @@ namespace DBProject
             DataTable DT = new DataTable();
 
 
-            string dID1 = (string)Session["dID"];
+            // cr-dotnet-0045: Redis-backed distributed session
+            string dID1 = (string)SessionHelper.Get("dID");
 
             int dID = Convert.ToInt32(dID1);
 
 
-            int pID = (int)Session["idoriginal"];
+            // cr-dotnet-0045: Redis-backed distributed session
+            int pID = (int)SessionHelper.Get("idoriginal");
 
             
             int status = objmyDAl.getFreeSlots(dID, pID, ref DT);
@@ -74,7 +87,11 @@ namespace DBProject
             {
                 PAppointment.Text = "The following are the " + status  + " free slots of this doctor for today :";
                 PAppointmentGrid.DataSource = DT;
-                PAppointmentGrid.DataBind();
+                // cr-dotnet-1034: Async DataBind using RegisterAsyncTask
+                RegisterAsyncTask(new PageAsyncTask(async () =>
+                {
+                    await Task.Run(() => PAppointmentGrid.DataBind());
+                }));
             }
 
             return;

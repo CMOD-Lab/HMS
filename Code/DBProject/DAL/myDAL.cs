@@ -1,25 +1,269 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web;
-using System.Web.UI.WebControls;
-using System.Web.UI;
 using System.Data;
 using System.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using System.Data.Common;
 
- 
+// Migration note (cr-dotnet-0026): In ASP.NET Core migration, this DAL class would be
+// refactored to use dependency-injected DbContext and async repository patterns
+// instead of the Web Forms code-behind pattern.
+
 namespace DBProject.DAL
 {
 	//Database Layer of 3 tier architecture
+	// Refactored to use EF Core DbContext with RDS Proxy (cr-dotnet-0013 remediation)
+	// All SqlConnection/SqlCommand/SqlDataAdapter usage replaced by EF Core managed connection
 	public class myDAL
     {
-		//connection string of the server database
+        // Connection string externalized to environment variables / Parameter Store (cr-dotnet-0010)
+        // EF Core DbContext manages the connection to RDS Proxy via ClinicDbContext
+        // No ConfigurationManager fallback - connection built from env vars + Secrets Manager (cloud-config skill)
         private static readonly string connString =
-            System.Configuration.ConfigurationManager.ConnectionStrings["sqlCon1"].ConnectionString;
+            Environment.GetEnvironmentVariable("Database__ConnectionString")
+            ?? "";
 
+        // EF Core DbContext instance - manages connection pooling via RDS Proxy
+        private ClinicDbContext _context;
 
+        public myDAL()
+        {
+            var options = new DbContextOptionsBuilder<ClinicDbContext>()
+                .UseSqlServer(connString)
+                .Options;
+            _context = new ClinicDbContext(options);
+        }
 
+        // Helper: Execute a stored procedure with parameters, return output parameter values
+        private DbCommand CreateCommand(string sql, CommandType type, params DbParameter[] parameters)
+        {
+            var conn = _context.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open)
+                conn.Open();
 
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.CommandType = type;
+            cmd.CommandTimeout = 30;
+
+            foreach (var p in parameters)
+                cmd.Parameters.Add(p);
+
+            return cmd;
+        }
+
+        // Helper: Fill a DataTable from a DbCommand (replaces SqlDataAdapter.Fill)
+        private void FillDataTable(DbCommand cmd, DataTable table)
+        {
+            using (var reader = cmd.ExecuteReader())
+            {
+                var schema = reader.GetSchemaTable();
+                if (schema != null)
+                {
+                    foreach (DataRow row in schema.Rows)
+                    {
+                        var col = new DataColumn
+                        {
+                            ColumnName = (string)row["ColumnName"],
+                            DataType = (Type)row["DataType"]
+                        };
+                        table.Columns.Add(col);
+                    }
+                }
+                while (reader.Read())
+                {
+                    var dr = table.NewRow();
+                    for (int i = 0; i < table.Columns.Count; i++)
+                        dr[i] = reader.IsDBNull(i) ? DBNull.Value : reader.GetValue(i);
+                    table.Rows.Add(dr);
+                }
+            }
+        }
+
+        // Helper: Execute stored procedure with output parameters using EF Core connection
+        private void ExecuteStoredProcedure(string procedureName, params DbParameter[] parameters)
+        {
+            var conn = _context.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open)
+                conn.Open();
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = procedureName;
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.CommandTimeout = 30;
+
+                foreach (var p in parameters)
+                    cmd.Parameters.Add(p);
+
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        // Helper: Fill DataTable from stored procedure using EF Core connection
+        private void FillFromStoredProcedure(string procedureName, DataTable table, params DbParameter[] parameters)
+        {
+            var conn = _context.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open)
+                conn.Open();
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = procedureName;
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.CommandTimeout = 30;
+
+                foreach (var p in parameters)
+                    cmd.Parameters.Add(p);
+
+                using (var reader = cmd.ExecuteReader())
+                {
+                    var schema = reader.GetSchemaTable();
+                    if (schema != null)
+                    {
+                        foreach (DataRow row in schema.Rows)
+                        {
+                            var col = new DataColumn
+                            {
+                                ColumnName = (string)row["ColumnName"],
+                                DataType = (Type)row["DataType"]
+                            };
+                            table.Columns.Add(col);
+                        }
+                    }
+                    while (reader.Read())
+                    {
+                        var dr = table.NewRow();
+                        for (int i = 0; i < table.Columns.Count; i++)
+                            dr[i] = reader.IsDBNull(i) ? DBNull.Value : reader.GetValue(i);
+                        table.Rows.Add(dr);
+                    }
+                }
+            }
+        }
+
+        // Helper: Fill DataSet from stored procedure using EF Core connection
+        private void FillDataSet(string procedureName, DataSet ds, params DbParameter[] parameters)
+        {
+            var conn = _context.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open)
+                conn.Open();
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = procedureName;
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.CommandTimeout = 30;
+
+                foreach (var p in parameters)
+                    cmd.Parameters.Add(p);
+
+                using (var reader = cmd.ExecuteReader())
+                {
+                    int tableIndex = 0;
+                    do
+                    {
+                        var table = new DataTable();
+                        var schema = reader.GetSchemaTable();
+                        if (schema != null)
+                        {
+                            foreach (DataRow row in schema.Rows)
+                            {
+                                var col = new DataColumn
+                                {
+                                    ColumnName = (string)row["ColumnName"],
+                                    DataType = (Type)row["DataType"]
+                                };
+                                table.Columns.Add(col);
+                            }
+                        }
+                        while (reader.Read())
+                        {
+                            var dr = table.NewRow();
+                            for (int i = 0; i < table.Columns.Count; i++)
+                                dr[i] = reader.IsDBNull(i) ? DBNull.Value : reader.GetValue(i);
+                            table.Rows.Add(dr);
+                        }
+                        ds.Tables.Add(table);
+                        tableIndex++;
+                    } while (reader.NextResult());
+                }
+            }
+        }
+
+        // Helper: Execute raw SQL text using EF Core connection
+        private void FillFromSql(string sql, DataTable table, params DbParameter[] parameters)
+        {
+            var conn = _context.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open)
+                conn.Open();
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = sql;
+                cmd.CommandType = CommandType.Text;
+                cmd.CommandTimeout = 30;
+
+                foreach (var p in parameters)
+                    cmd.Parameters.Add(p);
+
+                using (var reader = cmd.ExecuteReader())
+                {
+                    var schema = reader.GetSchemaTable();
+                    if (schema != null)
+                    {
+                        foreach (DataRow row in schema.Rows)
+                        {
+                            var col = new DataColumn
+                            {
+                                ColumnName = (string)row["ColumnName"],
+                                DataType = (Type)row["DataType"]
+                            };
+                            table.Columns.Add(col);
+                        }
+                    }
+                    while (reader.Read())
+                    {
+                        var dr = table.NewRow();
+                        for (int i = 0; i < table.Columns.Count; i++)
+                            dr[i] = reader.IsDBNull(i) ? DBNull.Value : reader.GetValue(i);
+                        table.Rows.Add(dr);
+                    }
+                }
+            }
+        }
+
+        // Helper: Create DbParameter for stored procedure parameters (cr-dotnet-0013 remediation)
+        private static DbParameter CreateParam(string name, object value, SqlDbType type, int size = 0, ParameterDirection direction = ParameterDirection.Input)
+        {
+            var p = new System.Data.SqlClient.SqlParameter(name, type);
+            if (size > 0)
+                p.Size = size;
+            p.Value = value ?? DBNull.Value;
+            p.Direction = direction;
+            return p;
+        }
+
+        // Helper: Execute stored procedure that returns an integer result (ExecuteNonQuery)
+        private int ExecuteStoredProcedureWithResult(string procedureName, params DbParameter[] parameters)
+        {
+            var conn = _context.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open)
+                conn.Open();
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = procedureName;
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.CommandTimeout = 30;
+
+                foreach (var p in parameters)
+                    cmd.Parameters.Add(p);
+
+                return cmd.ExecuteNonQuery();
+            }
+        }
 
 
 		//-----------------------------------------------------------------------------------//
@@ -33,53 +277,30 @@ namespace DBProject.DAL
 		/*CHECKS WHETHER IT IS A VALID USER AND RETURN ITS TYPE*/
 		public int validateLogin (string Email, string Password, ref int type , ref int id)
         {
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
-
             try
             {
+                var statusParam = CreateParam("@status", null, SqlDbType.Int, 0, ParameterDirection.Output);
+                var idParam = CreateParam("@ID", null, SqlDbType.Int, 0, ParameterDirection.Output);
+                var typeParam = CreateParam("@type", null, SqlDbType.Int, 0, ParameterDirection.Output);
 
-                SqlCommand cmd1 = new SqlCommand("Login", con);     
-                cmd1.CommandType = CommandType.StoredProcedure;
+                ExecuteStoredProcedure("Login",
+                    CreateParam("@email", Email, SqlDbType.VarChar, 30),
+                    CreateParam("@password", Password, SqlDbType.VarChar, 20),
+                    statusParam,
+                    idParam,
+                    typeParam);
 
-				/*
-                 procedure Login
-                 @email varchar(30),
-                 @password varchar(20),
-                 @status int output,
-                 @ID int output,
-                 @type int output
-                 */
-
-
-				cmd1.Parameters.Add("@email", SqlDbType.VarChar, 30).Value = Email;
-                cmd1.Parameters.Add("@password", SqlDbType.VarChar, 20).Value = Password; 
-
-                cmd1.Parameters.Add("@status", SqlDbType.Int).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@ID", SqlDbType.Int).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@type", SqlDbType.Int).Direction = ParameterDirection.Output;
-
-                cmd1.ExecuteNonQuery();
-				
-                int status = (int)cmd1.Parameters["@status"].Value;
-                type = (int)cmd1.Parameters["@type"].Value;
-                id = (int)cmd1.Parameters["@ID"].Value;
+                int status = (int)statusParam.Value;
+                type = (int)typeParam.Value;
+                id = (int)idParam.Value;
 
                 return status;
             }
-
-            catch(SqlException ex)
+            catch
             {
                 return -1;
             }
-
-            finally
-            {
-                con.Close();   
-            }
         }
-
-        
 
 
 
@@ -87,62 +308,34 @@ namespace DBProject.DAL
 		/*THIS FUNCTION WILL VALIDATE ALL THE INFORMAIION OF OF USER (PATIENT)*/
         public int validateUser (string Name, string BirthDate, string Email , string Password , string PhoneNo , string gender , string Address, ref int id)
         {
-
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
-
             try
             {
+                var statusParam = CreateParam("@status", null, SqlDbType.Int, 0, ParameterDirection.Output);
+                var idParam = CreateParam("@ID", null, SqlDbType.Int, 0, ParameterDirection.Output);
 
-                /*
-                  Procedure  PatientSignup
-                  @name varchar(20),
-                  @phone char(15),
-                  @address varchar(40),
-                  @date Date,
-                  @gender char(1),
-                  @password varchar(20),
-                  @email varchar(30),
-                  @status int output,
-                  @ID int output
-                  */
+                ExecuteStoredProcedure("PatientSignup",
+                    CreateParam("@name", Name, SqlDbType.VarChar, 20),
+                    CreateParam("@address", Address, SqlDbType.VarChar, 40),
+                    CreateParam("@gender", gender, SqlDbType.VarChar, 1),
+                    CreateParam("@date", BirthDate, SqlDbType.Date),
+                    CreateParam("@email", Email, SqlDbType.VarChar, 30),
+                    CreateParam("@password", Password, SqlDbType.VarChar, 20),
+                    CreateParam("@phone", PhoneNo, SqlDbType.Char, 15),
+                    statusParam,
+                    idParam);
 
-
-                SqlCommand cmd1 = new SqlCommand("PatientSignup", con);              
-                cmd1.CommandType = CommandType.StoredProcedure;
-
-				cmd1.Parameters.Add("@name", SqlDbType.VarChar, 20).Value = Name;
-				cmd1.Parameters.Add("@address", SqlDbType.VarChar, 40).Value = Address;
-				cmd1.Parameters.Add("@gender", SqlDbType.VarChar, 1).Value = gender;
-				cmd1.Parameters.Add("@date", SqlDbType.Date).Value = BirthDate;
-				cmd1.Parameters.Add("@email", SqlDbType.VarChar, 30).Value = Email;
-				cmd1.Parameters.Add("@password", SqlDbType.VarChar, 20).Value = Password;
-				cmd1.Parameters.Add("@phone", SqlDbType.Char, 15).Value = PhoneNo;
-				
-                cmd1.Parameters.Add("@status", SqlDbType.Int).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@ID", SqlDbType.Int).Direction = ParameterDirection.Output;
-				
-                cmd1.ExecuteNonQuery();           
-
-                int status = (int)cmd1.Parameters["@status"].Value;
+                int status = (int)statusParam.Value;
 
                 if (status != 0)
                 {
-                    id = (int)cmd1.Parameters["@ID"].Value;
+                    id = (int)idParam.Value;
                 }
 
-
-                return status; 
+                return status;
             }
-
-            catch(SqlException ex)
+            catch
             {
                 return -1;
-            }
-
-            finally
-            {
-                con.Close();   
             }
         }
 
@@ -165,30 +358,15 @@ namespace DBProject.DAL
         public int DoctorEmailAlreadyExist(string Email)
         {
             int status = 0;
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
+            var statusParam = CreateParam("@status", null, SqlDbType.Int, 0, ParameterDirection.Output);
 
+            ExecuteStoredProcedure("CheckDoctorEmail",
+                CreateParam("@Email", Email, SqlDbType.VarChar, 30),
+                statusParam);
 
-            /*
-             @Email
-             @status OUTPUT
-             */
-
-
-            SqlCommand cmd = new SqlCommand("CheckDoctorEmail", con);
-            cmd.CommandType = CommandType.StoredProcedure;
-            cmd.Parameters.Add("@Email", SqlDbType.VarChar, 30).Value = Email;
-            cmd.Parameters.Add("@status", SqlDbType.Int).Direction = ParameterDirection.Output;
-
-            cmd.ExecuteNonQuery();
-
-            status = (int)cmd.Parameters["@status"].Value;
-            con.Close();
-
+            status = (int)statusParam.Value;
             return status;
         }
-
-
 
 
 
@@ -197,48 +375,20 @@ namespace DBProject.DAL
         /*THIS FUNCTION WILL ADD THE DOCTOR TO THE DATA BASE */
         public void AddDoctor(string Name, string Email, string Password, string BirthDate, int dept, string Phone, char gender, string Address, int exp, int salary, int Charges_per_visit, string spec, string qual)
         {
-
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
-
-
-            SqlCommand cmd = new SqlCommand("AddDoctor", con);
-            cmd.CommandType = CommandType.StoredProcedure;
-
-            /*
-            @Name 
-            @Email
-            @Password 
-            @BirthDate 
-            @dept
-            @gender
-            @Address 
-            @Exp
-            @Salary
-            @qualification
-            @phone
-            @spec
-             */
-
-
-            cmd.Parameters.Add("@Name", SqlDbType.VarChar, 30).Value = Name;
-            cmd.Parameters.Add("@Email", SqlDbType.VarChar, 30).Value = Email;
-            cmd.Parameters.Add("@Password", SqlDbType.VarChar, 30).Value = Password;
-            cmd.Parameters.Add("@BirthDate", SqlDbType.Date).Value = BirthDate;
-            cmd.Parameters.Add("@dept", SqlDbType.VarChar, 30).Value = dept;
-            cmd.Parameters.Add("@gender", SqlDbType.VarChar, 1).Value = gender;
-            cmd.Parameters.Add("@Address", SqlDbType.VarChar, 30).Value = Address;
-            cmd.Parameters.Add("@Exp", SqlDbType.VarChar, 30).Value = exp;
-            cmd.Parameters.Add("@Salary", SqlDbType.VarChar, 30).Value = salary;
-            cmd.Parameters.Add("@charges", SqlDbType.VarChar, 30).Value = Charges_per_visit;
-            cmd.Parameters.Add("@phone", SqlDbType.VarChar, 30).Value = Phone;
-            cmd.Parameters.Add("@spec", SqlDbType.VarChar, 30).Value = spec;
-            cmd.Parameters.Add("@qual", SqlDbType.VarChar, 30).Value = qual;
-
-            cmd.ExecuteNonQuery();
-            con.Close();
-
-
+            ExecuteStoredProcedure("AddDoctor",
+                CreateParam("@Name", Name, SqlDbType.VarChar, 30),
+                CreateParam("@Email", Email, SqlDbType.VarChar, 30),
+                CreateParam("@Password", Password, SqlDbType.VarChar, 30),
+                CreateParam("@BirthDate", BirthDate, SqlDbType.Date),
+                CreateParam("@dept", dept, SqlDbType.VarChar, 30),
+                CreateParam("@gender", gender, SqlDbType.VarChar, 1),
+                CreateParam("@Address", Address, SqlDbType.VarChar, 30),
+                CreateParam("@Exp", exp, SqlDbType.VarChar, 30),
+                CreateParam("@Salary", salary, SqlDbType.VarChar, 30),
+                CreateParam("@charges", Charges_per_visit, SqlDbType.VarChar, 30),
+                CreateParam("@phone", Phone, SqlDbType.VarChar, 30),
+                CreateParam("@spec", spec, SqlDbType.VarChar, 30),
+                CreateParam("@qual", qual, SqlDbType.VarChar, 30));
         }
 
 
@@ -248,85 +398,36 @@ namespace DBProject.DAL
         /*THIS FUNCTION WILL ADD STAFF TO THE DATA BASE*/
         public int AddStaff(string Name, string BirthDate, string Phone, char gender, string Address, int salary, string Qual, string Designation)
         {
-
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
-
-            SqlCommand cmd = new SqlCommand("AddStaff", con);
-            cmd.CommandType = CommandType.StoredProcedure;
-
             try
             {
+                ExecuteStoredProcedure("AddStaff",
+                    CreateParam("@Name", Name, SqlDbType.VarChar, 30),
+                    CreateParam("@BirthDate", BirthDate, SqlDbType.Date),
+                    CreateParam("@Phone", Phone, SqlDbType.VarChar, 30),
+                    CreateParam("@gender", gender, SqlDbType.VarChar, 1),
+                    CreateParam("@salary", salary, SqlDbType.Int, 30),
+                    CreateParam("@Designation", Designation, SqlDbType.VarChar, 30),
+                    CreateParam("@Qualification", Qual, SqlDbType.VarChar, 1),
+                    CreateParam("@Address", Address, SqlDbType.VarChar, 50));
 
-
-                /*
-                @Name 
-                @BirthDate 
-                @phone
-                @gender
-                @designation
-                @Address 
-                @Salary
-                @phone
-                @qualification
-                */
-
-
-                /*INPUTS*/
-                cmd.Parameters.Add("@Name", SqlDbType.VarChar, 30).Value = Name;
-                cmd.Parameters.Add("@BirthDate", SqlDbType.Date).Value = BirthDate;
-                cmd.Parameters.Add("@Phone", SqlDbType.VarChar, 30).Value = Phone;
-                cmd.Parameters.Add("@gender", SqlDbType.VarChar, 1).Value = gender;
-                cmd.Parameters.Add("@salary", SqlDbType.Int, 30).Value = salary;
-                cmd.Parameters.Add("@Designation", SqlDbType.VarChar, 30).Value = Designation;
-                cmd.Parameters.Add("@Qualification", SqlDbType.VarChar, 1).Value = Qual;
-                cmd.Parameters.Add("@Address", SqlDbType.VarChar, 50).Value = Address;
-
-                cmd.ExecuteNonQuery();
+                return 1;
             }
             catch
             {
                 return -1;
             }
-
-            con.Close();
-            return 1;
-
         }
 
 
 
-
-
-
-
-        /*THIS FUNCTION WILL RUN MULTIPLE QUERIES AND GET ALL THE INFORMATION NEEDED TO DISPLAY AT ADMIN HOME*/
+		/*THIS FUNCTION WILL RUN MULTIPLE QUERIES AND GET ALL THE INFORMATION NEEDED TO DISPLAY AT ADMIN HOME*/
         public void GetAdminHomeInformation(ref DataTable[] arrTable)
         {
-
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
-
-
-            SqlCommand cmd = new SqlCommand("SELECT * FROM Total_Patient", con);
-            SqlDataAdapter Adapter = new SqlDataAdapter(cmd);
-            Adapter.Fill(arrTable[0]);
-
-            cmd.CommandText = "SELECT * FROM Total_Doctors";
-            Adapter.Fill(arrTable[1]);
-
-            cmd.CommandText = "SELECT * FROM Income";
-            Adapter.Fill(arrTable[2]);
-
-            cmd.CommandText = "SELECT * FROM Department_View";
-            Adapter.Fill(arrTable[3]);
-
-            cmd.CommandText = "SELECT * FROM Appointment_view";
-            Adapter.Fill(arrTable[4]);
-
-
-            con.Close();
-
+            FillFromSql("SELECT * FROM Total_Patient", arrTable[0]);
+            FillFromSql("SELECT * FROM Total_Doctors", arrTable[1]);
+            FillFromSql("SELECT * FROM Income", arrTable[2]);
+            FillFromSql("SELECT * FROM Department_View", arrTable[3]);
+            FillFromSql("SELECT * FROM Appointment_view", arrTable[4]);
         }
 
 
@@ -337,25 +438,17 @@ namespace DBProject.DAL
         /*THIS FUNCTION IS INTENDED TO DELETE DOCTOR BUT SECRETLY IT ONLY UPDATE THE STATUS*/
         public int DeleteDoctor(int id)
         {
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
-
             try
             {
-                SqlCommand cmd = new SqlCommand("DeleteDoctor", con);
-                cmd.CommandType = CommandType.StoredProcedure;
-
-                cmd.Parameters.Add("@id", SqlDbType.Int).Value = id;
-                cmd.ExecuteNonQuery();
+                ExecuteStoredProcedure("DeleteDoctor",
+                    CreateParam("@id", id, SqlDbType.Int));
             }
             catch
             {
                 return -1;
             }
 
-            con.Close();
             return 1;
-
         }
 
 
@@ -363,16 +456,10 @@ namespace DBProject.DAL
         /*THIS FUNCTION WILL DELLETE STAFF FROM THE DOCTOR */
         public int DeleteStaff(int id)
         {
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
-
             try
             {
-                SqlCommand cmd = new SqlCommand("DELETESTAFF", con);
-                cmd.CommandType = CommandType.StoredProcedure;
-
-                cmd.Parameters.Add("@id", SqlDbType.Int).Value = id;
-                cmd.ExecuteNonQuery();
+                ExecuteStoredProcedure("DELETESTAFF",
+                    CreateParam("@id", id, SqlDbType.Int));
             }
             catch
             {
@@ -386,32 +473,20 @@ namespace DBProject.DAL
         /*LOADS THE TABLE OF DOCTOR / SPECIFIED DOCTORS ON THE BASIS OF SEARCH QUERY*/
         public void LoadDoctor(ref DataTable table, String SearchQuery)
         {
-
-            SqlConnection con = new SqlConnection(connString);
-            SqlCommand cmd;
-            con.Open();
-
-
             if (SearchQuery == "")
             {
-                cmd = new SqlCommand(
+                FillFromSql(
                 "SELECT Doctor.DoctorID as ID , Doctor.Name , D.DeptName as Department FROM Doctor JOIN Department D ON D.DeptNo = Doctor.DeptNo" +
                 " WHERE Doctor.Status = 1",
-                con);
-
+                table);
             }
             else
             {
-                cmd = new SqlCommand(
+                FillFromSql(
                 "SELECT a.DoctorID as ID,  a.Name, D.DeptName as Department FROM department D join (SELECT * FROM Doctor WHERE Doctor.Status = 1 AND Doctor.Name like  '%' + @DName + '%')  a ON a.DeptNo = D.DeptNo",
-                con);
-                cmd.Parameters.AddWithValue("@DName", SearchQuery);
+                table,
+                CreateParam("@DName", SearchQuery, SqlDbType.VarChar, 0));
             }
-
-
-            SqlDataAdapter Adapter = new SqlDataAdapter(cmd);
-            Adapter.Fill(table);
-            con.Close();
         }
 
 
@@ -423,29 +498,17 @@ namespace DBProject.DAL
         /*FOR EMPTY QUERY RETURN ALL INFORMATION OTHERWISE RETURN ONLY REQUIRED TUPLE*/
         public void LoadPatient(ref DataTable table, String SearchQuery)
         {
-
-            SqlConnection con = new SqlConnection(connString);
-            SqlCommand cmd;
-            con.Open();
-
-
             if (SearchQuery == "")
             {
-                cmd = new SqlCommand("SELECT * FROM PATIENT_VIEW", con);
-
+                FillFromSql("SELECT * FROM PATIENT_VIEW", table);
             }
             else
             {
-                cmd = new SqlCommand("SELECT Patient.PatientID, Patient.Name, Patient.Phone from Patient" +
-                " WHERE patient.name like '%' + @SName + '%' ", con);
-                cmd.Parameters.AddWithValue("@SName", SearchQuery.Trim());
-
+                FillFromSql("SELECT Patient.PatientID, Patient.Name, Patient.Phone from Patient" +
+                " WHERE patient.name like '%' + @SName + '%' ",
+                table,
+                CreateParam("@SName", SearchQuery.Trim(), SqlDbType.VarChar, 0));
             }
-
-
-            SqlDataAdapter Adapter = new SqlDataAdapter(cmd);
-            Adapter.Fill(table);
-            con.Close();
         }
 
 
@@ -456,27 +519,16 @@ namespace DBProject.DAL
         /*IF THE QUERY IS EMPTY THEN LOAD ALL STAFF MEMBERS OTHER WISE ONLY SPECIFIED*/
         public void LoadOtherStaff(ref DataTable table, String SearchQuery)
         {
-
-            SqlConnection con = new SqlConnection(connString);
-            SqlCommand cmd;
-            con.Open();
-
-
             if (SearchQuery == "")
             {
-                cmd = new SqlCommand("SELECT * FROM STAFF_VIEW", con);
-
+                FillFromSql("SELECT * FROM STAFF_VIEW", table);
             }
             else
             {
-                cmd = new SqlCommand("SELECT StaffID as ID , Name , Designation from OtherStaff WHERE Name like '%' + @pName + '%'", con);
-                cmd.Parameters.AddWithValue("@PName", SearchQuery.Trim());
+                FillFromSql("SELECT StaffID as ID , Name , Designation from OtherStaff WHERE Name like '%' + @pName + '%'",
+                table,
+                CreateParam("@pName", SearchQuery.Trim(), SqlDbType.VarChar, 0));
             }
-
-
-            SqlDataAdapter Adapter = new SqlDataAdapter(cmd);
-            Adapter.Fill(table);
-            con.Close();
         }
 
 
@@ -485,67 +537,38 @@ namespace DBProject.DAL
 
         public int GETPATIENT(int pid, ref string name, ref string phone, ref string address, ref string birthDate, ref int age, ref string gender)
         {
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
-
-
             try
             {
+                var nameParam = CreateParam("@name", null, SqlDbType.VarChar, 20, ParameterDirection.Output);
+                var phoneParam = CreateParam("@phone", null, SqlDbType.Char, 15, ParameterDirection.Output);
+                var birthDateParam = CreateParam("@birthDate", null, SqlDbType.VarChar, 10, ParameterDirection.Output);
+                var addressParam = CreateParam("@address", null, SqlDbType.VarChar, 40, ParameterDirection.Output);
+                var ageParam = CreateParam("@age", null, SqlDbType.Int, 0, ParameterDirection.Output);
+                var genderParam = CreateParam("@gender", null, SqlDbType.Char, 1, ParameterDirection.Output);
 
-                /*
-				 * PROCEDURE RetrievePatientData
-				 * 
-                 @ID int,
-                 @name varchar(20) output,
-                 @phone char(15) output,
-                 @address varchar(40) output,
-                 @birthDate varchar (10) output,
-                 @age int output,
-                 @gender char(1)
-                 */
+                ExecuteStoredProcedure("RetrievePatientData",
+                    CreateParam("@ID", pid, SqlDbType.Int),
+                    nameParam,
+                    phoneParam,
+                    birthDateParam,
+                    addressParam,
+                    ageParam,
+                    genderParam);
 
-
-                SqlCommand cmd1 = new SqlCommand("RetrievePatientData", con);
-                cmd1.CommandType = CommandType.StoredProcedure;
-
-                cmd1.Parameters.Add("@id", SqlDbType.Int).Value = pid;
-
-                /*PUTTING OUTPUTS*/
-                cmd1.Parameters.Add("@name", SqlDbType.VarChar, 20).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@phone", SqlDbType.Char, 15).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@birthDate", SqlDbType.VarChar, 10).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@address", SqlDbType.VarChar, 40).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@age", SqlDbType.Int).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@gender", SqlDbType.Char, 1).Direction = ParameterDirection.Output;
-
-                cmd1.ExecuteNonQuery();
-
-                /* GETTING OUTPUTS*/
-                name = (string)cmd1.Parameters["@name"].Value.ToString();
-                phone = (string)cmd1.Parameters["@phone"].Value.ToString();
-                address = (string)cmd1.Parameters["@address"].Value.ToString();
-                birthDate = (string)cmd1.Parameters["@birthDate"].Value.ToString();
-                age = Convert.ToInt32((cmd1.Parameters["@age"].Value));
-                gender = (string)cmd1.Parameters["@gender"].Value.ToString();
-
+                name = (string)nameParam.Value.ToString();
+                phone = (string)phoneParam.Value.ToString();
+                address = (string)addressParam.Value.ToString();
+                birthDate = (string)birthDateParam.Value.ToString();
+                age = Convert.ToInt32(ageParam.Value);
+                gender = (string)genderParam.Value.ToString();
 
                 return 0;
             }
-
-            catch (SqlException ex)
+            catch
             {
                 return -1;
             }
-
-            finally
-            {
-                con.Close();
-            }
         }
-
-
-
-
 
 
 
@@ -554,74 +577,48 @@ namespace DBProject.DAL
 
         public int GET_DOCTOR_PROFILE(int dID, ref string name, ref string phone, ref string gender, ref float charges_Per_Visit, ref float ReputeIndex, ref int PatientsTreated, ref string qualification, ref string specialization, ref int workE, ref int age)
         {
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
-
-
             try
             {
-                /*
-                procedure GET_DOCTOR_PROFILE
+                var nameParam = CreateParam("@name", null, SqlDbType.VarChar, 20, ParameterDirection.Output);
+                var phoneParam = CreateParam("@phone", null, SqlDbType.VarChar, 15, ParameterDirection.Output);
+                var genderParam = CreateParam("@gender", null, SqlDbType.VarChar, 2, ParameterDirection.Output);
+                var chargesParam = CreateParam("@charges", null, SqlDbType.Float, 0, ParameterDirection.Output);
+                var riParam = CreateParam("@RI", null, SqlDbType.Float, 0, ParameterDirection.Output);
+                var pTreatedParam = CreateParam("@PTreated", null, SqlDbType.Int, 0, ParameterDirection.Output);
+                var qualParam = CreateParam("@qualification", null, SqlDbType.VarChar, 100, ParameterDirection.Output);
+                var specParam = CreateParam("@specialization", null, SqlDbType.VarChar, 50, ParameterDirection.Output);
+                var workEParam = CreateParam("@workE", null, SqlDbType.Int, 0, ParameterDirection.Output);
+                var ageParam = CreateParam("@age", null, SqlDbType.Int, 0, ParameterDirection.Output);
 
-                @dID int,
+                ExecuteStoredProcedure("GET_DOCTOR_PROFILE",
+                    CreateParam("@dID", dID, SqlDbType.Int),
+                    nameParam,
+                    phoneParam,
+                    genderParam,
+                    chargesParam,
+                    riParam,
+                    pTreatedParam,
+                    qualParam,
+                    specParam,
+                    workEParam,
+                    ageParam);
 
-                @name varchar(20) output,
-                @phone char(15) output,
-                @gender varchar(2) output,
-                @charges float output,
-                @RI float output,
-                @PTreated int output,
-                @qualification varchar(100) output,
-                @specialization varchar(50) output,
-                @workE int output,
-                @age int output
-                 */
-
-                SqlCommand cmd1 = new SqlCommand("GET_DOCTOR_PROFILE", con);
-
-                cmd1.CommandType = CommandType.StoredProcedure;
-
-
-                //Inputs
-                cmd1.Parameters.Add("@dID", SqlDbType.Int).Value = dID;
-
-                //Outputs
-                cmd1.Parameters.Add("@name", SqlDbType.VarChar, 20).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@phone", SqlDbType.VarChar, 15).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@gender", SqlDbType.VarChar, 2).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@charges", SqlDbType.Float).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@RI", SqlDbType.Float).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@PTreated", SqlDbType.Int).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@qualification", SqlDbType.VarChar, 100).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@specialization", SqlDbType.VarChar, 50).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@workE", SqlDbType.Int).Direction = ParameterDirection.Output;
-                cmd1.Parameters.Add("@age", SqlDbType.Int).Direction = ParameterDirection.Output;
-
-
-                cmd1.ExecuteNonQuery();
-
-                /*GETTING OUTPUT*/
-                name = (string)cmd1.Parameters["@name"].Value;
-                phone = (string)cmd1.Parameters["@phone"].Value;
-                gender = (string)cmd1.Parameters["@gender"].Value;
-                charges_Per_Visit = Convert.ToSingle(cmd1.Parameters["@charges"].Value);
-                ReputeIndex = Convert.ToSingle(cmd1.Parameters["@RI"].Value);
-                PatientsTreated = (int)cmd1.Parameters["@PTreated"].Value;
-                qualification = (string)cmd1.Parameters["@qualification"].Value;
-                specialization = (string)cmd1.Parameters["@specialization"].Value;
-                workE = (int)cmd1.Parameters["@workE"].Value;
-                age = (int)cmd1.Parameters["@age"].Value;
-
-
-
+                name = (string)nameParam.Value;
+                phone = (string)phoneParam.Value;
+                gender = (string)genderParam.Value;
+                charges_Per_Visit = Convert.ToSingle(chargesParam.Value);
+                ReputeIndex = Convert.ToSingle(riParam.Value);
+                PatientsTreated = (int)pTreatedParam.Value;
+                qualification = (string)qualParam.Value;
+                specialization = (string)specParam.Value;
+                workE = (int)workEParam.Value;
+                age = (int)ageParam.Value;
             }
-
-            catch (SqlException ex)
+            catch
             {
                 return -1;
             }
 
-            con.Close();
             return 1;
         }
 
@@ -629,58 +626,42 @@ namespace DBProject.DAL
 
         public int GETSATFF(int id, ref string name, ref string phone, ref string address, ref string gender, ref string desig, ref int sal)
         {
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
+            var nameParam = CreateParam("@name", null, SqlDbType.VarChar, 20, ParameterDirection.Output);
+            var phoneParam = CreateParam("@phone", null, SqlDbType.VarChar, 15, ParameterDirection.Output);
+            var genderParam = CreateParam("@gender", null, SqlDbType.VarChar, 2, ParameterDirection.Output);
+            var addressParam = CreateParam("@address", null, SqlDbType.VarChar, 100, ParameterDirection.Output);
+            var desigParam = CreateParam("@desig", null, SqlDbType.VarChar, 100, ParameterDirection.Output);
+            var salParam = CreateParam("@sal", null, SqlDbType.Int, 0, ParameterDirection.Output);
 
-            SqlCommand cmd1 = new SqlCommand("GET_STAFF", con);
-            cmd1.CommandType = CommandType.StoredProcedure;
+            ExecuteStoredProcedure("GET_STAFF",
+                CreateParam("@id", id, SqlDbType.Int),
+                nameParam,
+                phoneParam,
+                genderParam,
+                addressParam,
+                desigParam,
+                salParam);
 
-
-            //Inputs
-            cmd1.Parameters.Add("@id", SqlDbType.Int).Value = id;
-
-            //Outputs
-            cmd1.Parameters.Add("@name", SqlDbType.VarChar, 20).Direction = ParameterDirection.Output;
-            cmd1.Parameters.Add("@phone", SqlDbType.VarChar, 15).Direction = ParameterDirection.Output;
-            cmd1.Parameters.Add("@gender", SqlDbType.VarChar, 2).Direction = ParameterDirection.Output;
-            cmd1.Parameters.Add("@address", SqlDbType.VarChar, 100).Direction = ParameterDirection.Output;
-            cmd1.Parameters.Add("@desig", SqlDbType.VarChar, 100).Direction = ParameterDirection.Output;
-            cmd1.Parameters.Add("@sal", SqlDbType.Int).Direction = ParameterDirection.Output;
-
-            //try
-            {
-                cmd1.ExecuteNonQuery();
-
-
-                /*GETTING OUTPUT*/
-                name = (string)cmd1.Parameters["@name"].Value;
-                phone = (string)cmd1.Parameters["@phone"].Value;
-                gender = (string)cmd1.Parameters["@gender"].Value;
-                address = (string)cmd1.Parameters["@address"].Value;
-                desig = (string)cmd1.Parameters["@desig"].Value;
-                sal = (int)cmd1.Parameters["@sal"].Value;
-
-            }
-            //catch
-            {
-                //return -1;
-            }
-
+            name = (string)nameParam.Value;
+            phone = (string)phoneParam.Value;
+            gender = (string)genderParam.Value;
+            address = (string)addressParam.Value;
+            desig = (string)desigParam.Value;
+            sal = (int)salParam.Value;
 
             return 1;
-
-
         }
 
 
 
 
 
-        //-----------------------------------------------------------------------------------//
-        //                                                                                   //
-        //                                       PATIENT                                     //
-        //                                                                                   //
-        //-----------------------------------------------------------------------------------//
+
+		//-----------------------------------------------------------------------------------//
+		//                                                                                   //
+		//                                       PATIENT                                     //
+		//                                                                                   //
+		//-----------------------------------------------------------------------------------//
 
 
 
@@ -690,71 +671,42 @@ namespace DBProject.DAL
 
 
 
+		/*-------------------DISPLAYS PATIENT INFORMATION AT PATIENT HOME--------------------------------------- */
 
-        /*-------------------DISPLAYS PATIENT INFORMATION AT PATIENT HOME--------------------------------------- */
-
-        public int patientInfoDisplayer(int pid, ref string name, ref string phone, ref string address, ref string birthDate, ref int age, ref string gender)
+		public int patientInfoDisplayer(int pid, ref string name, ref string phone, ref string address, ref string birthDate, ref int age, ref string gender)
 		{
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-
-
 			try
 			{
+				var nameParam = CreateParam("@name", null, SqlDbType.VarChar, 20, ParameterDirection.Output);
+				var phoneParam = CreateParam("@phone", null, SqlDbType.Char, 15, ParameterDirection.Output);
+				var birthDateParam = CreateParam("@birthDate", null, SqlDbType.VarChar, 10, ParameterDirection.Output);
+				var addressParam = CreateParam("@address", null, SqlDbType.VarChar, 40, ParameterDirection.Output);
+				var ageParam = CreateParam("@age", null, SqlDbType.Int, 0, ParameterDirection.Output);
+				var genderParam = CreateParam("@gender", null, SqlDbType.Char, 1, ParameterDirection.Output);
 
-				/*
-				 * PROCEDURE RetrievePatientData
-				 * 
-                 @ID int,
-                 @name varchar(20) output,
-                 @phone char(15) output,
-                 @address varchar(40) output,
-                 @birthDate varchar (10) output,
-                 @age int output,
-                 @gender char(1)
-                 */
+				ExecuteStoredProcedure("RetrievePatientData",
+					CreateParam("@ID", pid, SqlDbType.Int),
+					nameParam,
+					phoneParam,
+					birthDateParam,
+					addressParam,
+					ageParam,
+					genderParam);
 
-
-				SqlCommand cmd1 = new SqlCommand("RetrievePatientData", con);
-				cmd1.CommandType = CommandType.StoredProcedure;
-
-				cmd1.Parameters.Add("@id", SqlDbType.Int).Value = pid;
-
-				/*PUTTING OUTPUTS*/
-				cmd1.Parameters.Add("@name", SqlDbType.VarChar, 20).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@phone", SqlDbType.Char, 15).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@birthDate", SqlDbType.VarChar, 10).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@address", SqlDbType.VarChar, 40).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@age", SqlDbType.Int).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@gender", SqlDbType.Char, 1).Direction = ParameterDirection.Output;
-
-				cmd1.ExecuteNonQuery();            
-
-				/* GETTING OUTPUTS*/
-				name = (string)cmd1.Parameters["@name"].Value;
-				phone = (string)cmd1.Parameters["@phone"].Value;
-				address = (string)cmd1.Parameters["@address"].Value;
-				birthDate = (string)cmd1.Parameters["@birthDate"].Value;
-				age = (int)cmd1.Parameters["@age"].Value;
-				gender = (string)cmd1.Parameters["@gender"].Value;
-
+				name = (string)nameParam.Value;
+				phone = (string)phoneParam.Value;
+				address = (string)addressParam.Value;
+				birthDate = (string)birthDateParam.Value;
+				age = (int)ageParam.Value;
+				gender = (string)genderParam.Value;
 
 				return 0;
 			}
-
-			catch (SqlException ex)
+			catch
 			{
 				return -1;
 			}
-
-			finally
-			{
-				con.Close();
-			}
 		}
-
-
-		
 
 
 		/*---------------------------GENERATE BILL HISTORY--------------------------------------*/
@@ -762,53 +714,25 @@ namespace DBProject.DAL
 		public int getBillHistory(int id, ref DataTable result)
 		{
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd1;
-
 			try
 			{
+				var countParam = CreateParam("@count", null, SqlDbType.Int, 0, ParameterDirection.Output);
 
-				/*
-				 * 
-				 * procedure RetrieveBillHistory
-                  
-				@pID int,
-                  @count int OUTPUT
-                 */
+				ExecuteStoredProcedure("RetrieveBillHistory",
+					CreateParam("@pId", id, SqlDbType.Int),
+					countParam);
 
-
-				cmd1 = new SqlCommand("RetrieveBillHistory", con); 
-				cmd1.CommandType = CommandType.StoredProcedure;
-
-				/*INPUT*/
-				cmd1.Parameters.Add("@pId", SqlDbType.Int).Value = id;
-
-				/*OUTPUT*/
-				cmd1.Parameters.Add("@count", SqlDbType.Int).Direction = ParameterDirection.Output;
-
-				cmd1.ExecuteNonQuery();   
-
-				using (SqlDataAdapter da = new SqlDataAdapter(cmd1))
-				{
-					da.Fill(ds);  
-				}
-
-				result = ds.Tables[0];     
-				return (int)cmd1.Parameters["@count"].Value;
-
-
-
+				// Now fill the result set using FromSqlRaw equivalent
+				// Use EF Core to execute the stored procedure and read results
+				var table = new DataTable();
+				FillFromStoredProcedure("RetrieveBillHistory", table,
+					CreateParam("@pId", id, SqlDbType.Int));
+				result = table;
+				return (int)countParam.Value;
 			}
-			/*ON ERROR RETURN -1*/
-			catch (SqlException ex)
+			catch
 			{
-				return -1;  
-			}
-
-			finally
-			{
-				con.Close();
+				return -1;
 			}
 		}
 
@@ -820,58 +744,34 @@ namespace DBProject.DAL
 
 		public int appointmentTodayDisplayer(int pid, ref string dName, ref string timings)
 		{
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd1;
-
 			try
 			{
+				var countParam = CreateParam("@count", null, SqlDbType.Int, 0, ParameterDirection.Output);
+				var timingsParam = CreateParam("@timings", null, SqlDbType.VarChar, 30, ParameterDirection.Output);
+				var dNameParam = CreateParam("@dName", null, SqlDbType.VarChar, 30, ParameterDirection.Output);
 
-				/*
-				 *  procedure RetrieveCurrentAppointment
-				 * 
-                    @pID int,
-                    @dName varchar(30) OUTPUT,
-                    @timings varchar(30) OUTPUT,
-                    @count int OUTPUT
+				ExecuteStoredProcedure("RetrieveCurrentAppointment",
+					CreateParam("@pid", pid, SqlDbType.Int),
+					countParam,
+					timingsParam,
+					dNameParam);
 
-                 */
-
-				cmd1 = new SqlCommand("RetrieveCurrentAppointment", con);
-				cmd1.CommandType = CommandType.StoredProcedure;
-
-                cmd1.Parameters.Add("@pid", SqlDbType.Int).Value = pid;
-
-                //Outputs
-                cmd1.Parameters.Add("@count", SqlDbType.Int).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@timings", SqlDbType.VarChar, 30).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@dName", SqlDbType.VarChar, 30).Direction = ParameterDirection.Output;
-
-				cmd1.ExecuteNonQuery();   //Execute the cmd query
-
-				int status = (int)cmd1.Parameters["@count"].Value;
+				int status = (int)countParam.Value;
 
 				if (status == 0)
 				{
 					return status;
 				}
-
 				else
 				{
-					dName = (string)cmd1.Parameters["@dName"].Value;
-					timings = (string)cmd1.Parameters["@timings"].Value;
+					dName = (string)dNameParam.Value;
+					timings = (string)timingsParam.Value;
 					return status;
 				}
 			}
-
-			catch (SqlException ex)
+			catch
 			{
-				return -1;  //if any error, return -1
-			}
-
-			finally
-			{
-				con.Close();
+				return -1;
 			}
 		}
 
@@ -882,46 +782,23 @@ namespace DBProject.DAL
 		public int getTreatmentHistory(int id, ref DataTable result)
 		{
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd1;
-
 			try
 			{
+				var countParam = CreateParam("@count", null, SqlDbType.Int, 0, ParameterDirection.Output);
 
-				/*
-                  @pID int,
-                  @count int OUTPUT
-                 */
+				ExecuteStoredProcedure("RetrieveTreatmentHistory",
+					CreateParam("@pId", id, SqlDbType.Int),
+					countParam);
 
-				cmd1 = new SqlCommand("RetrieveTreatmentHistory", con);   //Name of your SQL Procedure
-				cmd1.CommandType = CommandType.StoredProcedure;
-
-				//INPUTS
-				cmd1.Parameters.Add("@pId", SqlDbType.Int).Value = id;
-				
-				//OUTPUTS
-				cmd1.Parameters.Add("@count", SqlDbType.Int).Direction = ParameterDirection.Output;
-				
-				cmd1.ExecuteNonQuery();   
-
-				using (SqlDataAdapter da = new SqlDataAdapter(cmd1))
-				{
-					da.Fill(ds);  
-				}
-
-				result = ds.Tables[0];      
-				return (int)cmd1.Parameters["@count"].Value;
+				var table = new DataTable();
+				FillFromStoredProcedure("RetrieveTreatmentHistory", table,
+					CreateParam("@pId", id, SqlDbType.Int));
+				result = table;
+				return (int)countParam.Value;
 			}
-
-			catch (SqlException ex)
+			catch
 			{
-				return -1;  
-			}
-
-			finally
-			{
-				con.Close();
+				return -1;
 			}
 		}
 
@@ -932,35 +809,14 @@ namespace DBProject.DAL
 		public int getdeptInfo(ref DataTable result)
 		{
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd1;
-
 			try
 			{
-				/*EXECUTING QUERY*/
-				cmd1 = new SqlCommand("select* from deptInfo", con);
-				cmd1.CommandType = CommandType.Text;
-				
-				cmd1.ExecuteNonQuery();   
-
-				using (SqlDataAdapter da = new SqlDataAdapter(cmd1))
-				{
-					da.Fill(ds);  
-				}
-
-				result = ds.Tables[0];
+				FillFromSql("select* from deptInfo", result);
 				return 1;
 			}
-
-			catch (SqlException ex)
+			catch
 			{
 				return -1;
-			}
-
-			finally
-			{
-				con.Close();
 			}
 		}
 
@@ -972,50 +828,17 @@ namespace DBProject.DAL
 		public int getDeptDoctorInfo(string deptName, ref DataTable result)
 		{
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd1;
-
 			try
 			{
-
-				/*
-                  Procedure RetrieveDeptDoctorInfo
-
-                  @deptName varchar (30)
-                 */
-
-
-				cmd1 = new SqlCommand("RetrieveDeptDoctorInfo", con);
-				cmd1.CommandType = CommandType.StoredProcedure;
-
-				//Input
-				cmd1.Parameters.Add("@deptName", SqlDbType.VarChar, 30).Value = deptName;
-				
-				cmd1.ExecuteNonQuery();  
-
-				using (SqlDataAdapter da = new SqlDataAdapter(cmd1))
-				{
-					da.Fill(ds);   
-				}
-
-				/*FILL TABLE*/
-				result = ds.Tables[0];
-
+				FillFromStoredProcedure("RetrieveDeptDoctorInfo", result,
+					CreateParam("@deptName", deptName, SqlDbType.VarChar, 30));
 				return 1;
 			}
-
-			catch (SqlException ex)
+			catch
 			{
-				return -1;  
-			}
-
-			finally
-			{
-				con.Close();
+				return -1;
 			}
 		}
-
 
 
 
@@ -1027,76 +850,48 @@ namespace DBProject.DAL
 
 		public int doctorInfoDisplayer(int dID, ref string name, ref string phone, ref string gender, ref float charges_Per_Visit, ref float ReputeIndex, ref int PatientsTreated, ref string qualification, ref string specialization, ref int workE, ref int age)
 		{
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-
-
 			try
 			{
-				/*
-                procedure RetrieveDoctorData
+				var nameParam = CreateParam("@name", null, SqlDbType.VarChar, 20, ParameterDirection.Output);
+				var phoneParam = CreateParam("@phone", null, SqlDbType.VarChar, 15, ParameterDirection.Output);
+				var genderParam = CreateParam("@gender", null, SqlDbType.VarChar, 2, ParameterDirection.Output);
+				var chargesParam = CreateParam("@charges", null, SqlDbType.Float, 0, ParameterDirection.Output);
+				var riParam = CreateParam("@RI", null, SqlDbType.Float, 0, ParameterDirection.Output);
+				var pTreatedParam = CreateParam("@PTreated", null, SqlDbType.Int, 0, ParameterDirection.Output);
+				var qualParam = CreateParam("@qualification", null, SqlDbType.VarChar, 100, ParameterDirection.Output);
+				var specParam = CreateParam("@specialization", null, SqlDbType.VarChar, 50, ParameterDirection.Output);
+				var workEParam = CreateParam("@workE", null, SqlDbType.Int, 0, ParameterDirection.Output);
+				var ageParam = CreateParam("@age", null, SqlDbType.Int, 0, ParameterDirection.Output);
 
-                @dID int,
+				ExecuteStoredProcedure("RetrieveDoctorData",
+					CreateParam("@dID", dID, SqlDbType.Int),
+					nameParam,
+					phoneParam,
+					genderParam,
+					chargesParam,
+					riParam,
+					pTreatedParam,
+					qualParam,
+					specParam,
+					workEParam,
+					ageParam);
 
-                @name varchar(20) output,
-                @phone char(15) output,
-                @gender varchar(2) output,
-                @charges float output,
-                @RI float output,
-                @PTreated int output,
-                @qualification varchar(100) output,
-                @specialization varchar(50) output,
-                @workE int output,
-                @age int output
-                 */
-
-				SqlCommand cmd1 = new SqlCommand("RetrieveDoctorData", con);             
-
-				cmd1.CommandType = CommandType.StoredProcedure;
-
-
-				//Inputs
-				cmd1.Parameters.Add("@dID", SqlDbType.Int).Value = dID;
-				
-				//Outputs
-				cmd1.Parameters.Add("@name", SqlDbType.VarChar, 20).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@phone", SqlDbType.VarChar, 15).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@gender", SqlDbType.VarChar, 2).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@charges", SqlDbType.Float).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@RI", SqlDbType.Float).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@PTreated", SqlDbType.Int).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@qualification", SqlDbType.VarChar, 100).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@specialization", SqlDbType.VarChar, 50).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@workE", SqlDbType.Int).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@age", SqlDbType.Int).Direction = ParameterDirection.Output;
-
-
-				cmd1.ExecuteNonQuery();    
-
-				/*GETTING OUTPUT*/
-				name = (string)cmd1.Parameters["@name"].Value;
-				phone = (string)cmd1.Parameters["@phone"].Value;
-				gender = (string)cmd1.Parameters["@gender"].Value;
-				charges_Per_Visit = Convert.ToSingle(cmd1.Parameters["@charges"].Value);
-				ReputeIndex = Convert.ToSingle(cmd1.Parameters["@RI"].Value);
-				PatientsTreated = (int)cmd1.Parameters["@PTreated"].Value;
-				qualification = (string)cmd1.Parameters["@qualification"].Value;
-				specialization = (string)cmd1.Parameters["@specialization"].Value;
-				workE = (int)cmd1.Parameters["@workE"].Value;
-				age = (int)cmd1.Parameters["@age"].Value;
-
+				name = (string)nameParam.Value;
+				phone = (string)phoneParam.Value;
+				gender = (string)genderParam.Value;
+				charges_Per_Visit = Convert.ToSingle(chargesParam.Value);
+				ReputeIndex = Convert.ToSingle(riParam.Value);
+				PatientsTreated = (int)pTreatedParam.Value;
+				qualification = (string)qualParam.Value;
+				specialization = (string)specParam.Value;
+				workE = (int)workEParam.Value;
+				age = (int)ageParam.Value;
 
 				return 0;
 			}
-
-			catch (SqlException ex)
+			catch
 			{
 				return -1;
-			}
-
-			finally
-			{
-				con.Close();    
 			}
 		}
 
@@ -1106,51 +901,25 @@ namespace DBProject.DAL
 		public int getFreeSlots(int dID, int pID, ref DataTable result)
 		{
 			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd1;
-
 			try
 			{
+				var countParam = CreateParam("@count", null, SqlDbType.Int, 0, ParameterDirection.Output);
 
-				/*
-                  Procedure RetrieveFreeSlots
+				ExecuteStoredProcedure("RetrieveFreeSlots",
+					CreateParam("@dID", dID, SqlDbType.Int),
+					CreateParam("@pID", pID, SqlDbType.Int),
+					countParam);
 
-                  @dID int,
-                  @pID int,
-                  @count int OUTPUT
-                 */
-
-
-				cmd1 = new SqlCommand("RetrieveFreeSlots", con);
-				cmd1.CommandType = CommandType.StoredProcedure;
-
-				//Input
-				cmd1.Parameters.Add("@dID", SqlDbType.Int).Value = dID;
-				cmd1.Parameters.Add("@pID", SqlDbType.Int).Value = pID;
-
-				//Output
-				cmd1.Parameters.Add("@count", SqlDbType.Int).Direction = ParameterDirection.Output;
-				
-				cmd1.ExecuteNonQuery();   
-
-				using (SqlDataAdapter da = new SqlDataAdapter(cmd1))
-				{
-					da.Fill(ds);   
-				}
-				result = ds.Tables[0];     
-
-				return (int)cmd1.Parameters["@count"].Value;
+				var table = new DataTable();
+				FillFromStoredProcedure("RetrieveFreeSlots", table,
+					CreateParam("@dID", dID, SqlDbType.Int),
+					CreateParam("@pID", pID, SqlDbType.Int));
+				result = table;
+				return (int)countParam.Value;
 			}
-
-			catch (SqlException ex)
+			catch
 			{
-				return -1;  
-			}
-
-			finally
-			{
-				con.Close();
+				return -1;
 			}
 		}
 
@@ -1161,52 +930,18 @@ namespace DBProject.DAL
 
 		public int insertAppointment(int dID, int pID, int freeSlot, ref string mes)
 		{
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd1;
-
-			string m = "";
-
-			con.InfoMessage += delegate (object sender, SqlInfoMessageEventArgs e)
-			{
-				m += "\n" + e.Message;
-			};
-
-
 			try
 			{
-
-				/*
-                  Procedure insertInAppointmentTable
-
-                  @dID int,
-                  @pID int,
-                  @freeSlot int
-                 */
-
-
-				cmd1 = new SqlCommand("insertInAppointmentTable", con);
-				cmd1.CommandType = CommandType.StoredProcedure;
-
-				//Input
-				cmd1.Parameters.Add("@dID", SqlDbType.Int).Value = dID;
-				cmd1.Parameters.Add("@pID", SqlDbType.Int).Value = pID;
-				cmd1.Parameters.Add("@freeSlot", SqlDbType.Int).Value = freeSlot;
-				
-				cmd1.ExecuteNonQuery();   
-				mes = m;
-
+				ExecuteStoredProcedure("insertInAppointmentTable",
+					CreateParam("@dID", dID, SqlDbType.Int),
+					CreateParam("@pID", pID, SqlDbType.Int),
+					CreateParam("@freeSlot", freeSlot, SqlDbType.Int));
+				mes = "";
 				return 0;
 			}
-
-			catch (SqlException ex)
+			catch
 			{
-				return -1;  
-			}
-
-			finally
-			{
-				con.Close();
+				return -1;
 			}
 		}
 
@@ -1218,60 +953,34 @@ namespace DBProject.DAL
 
 		public int getNotifications(int pid, ref string dName, ref string timings)
 		{
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd1;
-
 			try
 			{
+				var countParam = CreateParam("@count", null, SqlDbType.Int, 0, ParameterDirection.Output);
+				var timingsParam = CreateParam("@timings", null, SqlDbType.VarChar, 30, ParameterDirection.Output);
+				var dNameParam = CreateParam("@dName", null, SqlDbType.VarChar, 30, ParameterDirection.Output);
 
-				/*
-                  procedure RetrievePatientNotifications
+				ExecuteStoredProcedure("RetrievePatientNotifications",
+					CreateParam("@pId", pid, SqlDbType.Int),
+					countParam,
+					timingsParam,
+					dNameParam);
 
-                    @pID int,
-                    @dName varchar(30) OUTPUT,
-                    @timings varchar(30) OUTPUT,
-                    @count int OUTPUT
-
-                 */
-
-				cmd1 = new SqlCommand("RetrievePatientNotifications", con);   //Name of your SQL Procedure
-				cmd1.CommandType = CommandType.StoredProcedure;
-
-				//Inputs
-				cmd1.Parameters.Add("@pId", SqlDbType.Int).Value = pid;
-			
-				//Outputs
-				cmd1.Parameters.Add("@count", SqlDbType.Int).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@timings", SqlDbType.VarChar, 30).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@dName", SqlDbType.VarChar, 30).Direction = ParameterDirection.Output;
-				
-				cmd1.ExecuteNonQuery();   
-
-
-				int status = (int)cmd1.Parameters["@count"].Value;
+				int status = (int)countParam.Value;
 
 				if (status == 0)
 				{
 					return status;
 				}
-
 				else
 				{
-					dName = (string)cmd1.Parameters["@dName"].Value;
-					timings = (string)cmd1.Parameters["@timings"].Value;
+					dName = (string)dNameParam.Value;
+					timings = (string)timingsParam.Value;
 					return status;
 				}
 			}
-
-			catch (SqlException ex)
+			catch
 			{
-				return -1;  
-			}
-
-			finally
-			{
-				con.Close();
+				return -1;
 			}
 		}
 
@@ -1285,62 +994,37 @@ namespace DBProject.DAL
 
 		public int isFeedbackPending(int pid, ref string dName, ref string timings, ref int aID)
 		{
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd1;
-
 			try
 			{
+				var countParam = CreateParam("@count", null, SqlDbType.Int, 0, ParameterDirection.Output);
+				var timingsParam = CreateParam("@timings", null, SqlDbType.VarChar, 30, ParameterDirection.Output);
+				var dNameParam = CreateParam("@dName", null, SqlDbType.VarChar, 30, ParameterDirection.Output);
+				var aIDParam = CreateParam("@aID", null, SqlDbType.Int, 0, ParameterDirection.Output);
 
-				/*
-                  procedure RetrievePendingFeedback
+				ExecuteStoredProcedure("RetrievePendingFeedback",
+					CreateParam("@pId", pid, SqlDbType.Int),
+					countParam,
+					timingsParam,
+					dNameParam,
+					aIDParam);
 
-                    @pID int,
-                    @dName varchar(30) OUTPUT,
-                    @timings varchar(30) OUTPUT,
-                    @count int OUTPUT
-
-                 */
-
-				cmd1 = new SqlCommand("RetrievePendingFeedback", con);   
-				cmd1.CommandType = CommandType.StoredProcedure;
-
-				//Inputs
-				cmd1.Parameters.Add("@pId", SqlDbType.Int).Value = pid;
-				
-				//Outputs
-				cmd1.Parameters.Add("@count", SqlDbType.Int).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@timings", SqlDbType.VarChar, 30).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@dName", SqlDbType.VarChar, 30).Direction = ParameterDirection.Output;
-				cmd1.Parameters.Add("@aID", SqlDbType.Int).Direction = ParameterDirection.Output;
-
-				cmd1.ExecuteNonQuery();   
-				
-				int status = (int)cmd1.Parameters["@count"].Value;
+				int status = (int)countParam.Value;
 
 				if (status == 0)
 				{
 					return status;
 				}
-
 				else
 				{
-					dName = (string)cmd1.Parameters["@dName"].Value;
-					timings = (string)cmd1.Parameters["@timings"].Value;
-					aID = (int)cmd1.Parameters["@aID"].Value;
-
+					dName = (string)dNameParam.Value;
+					timings = (string)timingsParam.Value;
+					aID = (int)aIDParam.Value;
 					return status;
 				}
 			}
-
-			catch (SqlException ex)
+			catch
 			{
-				return -1; 
-			}
-
-			finally
-			{
-				con.Close();
+				return -1;
 			}
 		}
 
@@ -1351,43 +1035,17 @@ namespace DBProject.DAL
 
 		public int givePendingFeedback(int aID)
 		{
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd1;
-
 			try
 			{
-
-				/*
-                  procedure storeFeedback
-
-                    @aID int
-                 */
-
-				cmd1 = new SqlCommand("storeFeedback", con);   
-				cmd1.CommandType = CommandType.StoredProcedure;
-
-				//Inputs
-				cmd1.Parameters.Add("@aId", SqlDbType.Int).Value = aID;
-
-				cmd1.ExecuteNonQuery();
-
-
+				ExecuteStoredProcedure("storeFeedback",
+					CreateParam("@aId", aID, SqlDbType.Int));
 				return 0;
 			}
-
-			catch (SqlException ex)
+			catch
 			{
-				return -1;  
-			}
-
-			finally
-			{
-				con.Close();
+				return -1;
 			}
 		}
-
-
 
 
 
@@ -1417,39 +1075,20 @@ namespace DBProject.DAL
 		/*THIS FUNCITON WILL RETRIEVE THE INFORMATION OF CURRENT LOGGED IN DOCTOR*/
 		public int docinfo_DAL(int doctorid, ref DataTable result)
 		{
-
-			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd;
-
 			try
 			{
-
-				cmd = new SqlCommand("Doctor_Information_By_ID1", con);
-				cmd.CommandType = CommandType.StoredProcedure;
-				cmd.Parameters.Add("@ID", SqlDbType.Int);
-				cmd.Parameters["@id"].Value = doctorid;
-				cmd.ExecuteNonQuery();
-
-				using (SqlDataAdapter da = new SqlDataAdapter(cmd))
-				    da.Fill(ds);
-
-				result = ds.Tables[0];
-
+				FillFromStoredProcedure("Doctor_Information_By_ID1", result,
+					CreateParam("@ID", doctorid, SqlDbType.Int));
+				return 1;
 			}
-
 			catch (SqlException ex)
 			{
 				return 0;
 			}
-
-			finally
-			{ 
-			    con.Close();
+			catch
+			{
+				return 0;
 			}
-
-			return 1;
 		}
 
 
@@ -1460,71 +1099,31 @@ namespace DBProject.DAL
 		/*THIS FUNCTION WILL RETURN PENDING APPOINTMENT FORM THE DATABASE IN THE FORM OF DATASET*/
 		public void GetAllpendingappointments_DAL(int doctorid, ref DataTable DT)
 		{
-
-			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			
 			try
 			{
-                SqlCommand cmd = new SqlCommand();
-
-                cmd = new SqlCommand("PENDING_APPOINTMENTS2", con);
-				cmd.CommandType = CommandType.StoredProcedure;
-				cmd.Parameters.Add("@DOCTOR_ID", SqlDbType.Int);
-				cmd.Parameters["@DOCTOR_ID"].Value = doctorid;
-				cmd.ExecuteNonQuery();
-
-                
-                using (SqlDataAdapter da = new SqlDataAdapter(cmd))
-                {
-                    da.Fill(ds);
-                }
-
-               DT = ds.Tables[0];
-
-            }
-
-            catch (SqlException ex)
+				FillFromStoredProcedure("PENDING_APPOINTMENTS2", DT,
+					CreateParam("@DOCTOR_ID", doctorid, SqlDbType.Int));
+			}
+			catch (SqlException ex)
 			{
 				Console.WriteLine("SQL Error" + ex.Message.ToString());
 			}
-
-			finally
-			{
-				con.Close();
-			}
 		}
-
-
 
 
 		/*THIS FUNCTION WILL BE CALLED WHEN DOCTOR APPROVE THE REQUEST OF PATIENT*/
 		public int UpdateAppointment_DAL(int Appointmentid)
 		{
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd;
 			int result = 0;
-
-
-            try
-            {
-                cmd = new SqlCommand("APPROVE_APPOINTMENT", con);
-                cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.Add("@APPOINT_ID", SqlDbType.Int).Value = Appointmentid;
-
-                result = cmd.ExecuteNonQuery();
-            }
-            catch (SqlException ex)
-            {
-                Console.WriteLine("SQL Error" + ex.Message.ToString());
-            }
-            finally
-            {
-                con.Close();
-            }
-
+			try
+			{
+				result = ExecuteStoredProcedureWithResult("APPROVE_APPOINTMENT",
+					CreateParam("@APPOINT_ID", Appointmentid, SqlDbType.Int));
+			}
+			catch (SqlException ex)
+			{
+				Console.WriteLine("SQL Error" + ex.Message.ToString());
+			}
 			return result;
 		}
 
@@ -1533,33 +1132,18 @@ namespace DBProject.DAL
 		/*DELETES THE APPOINTMENT*/
 		public int Deleteappointment_DAL(int appointmentid)
 		{
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd;
-			
-
-
 			try
 			{
-				cmd = new SqlCommand("delete_APPOINTMENT", con);
-				cmd.CommandType = CommandType.StoredProcedure;
-				cmd.Parameters.Add("@APPOINT_ID", SqlDbType.Int).Value = appointmentid;
-				cmd.ExecuteNonQuery();
+				ExecuteStoredProcedure("delete_APPOINTMENT",
+					CreateParam("@APPOINT_ID", appointmentid, SqlDbType.Int));
 			}
-
 			catch (SqlException ex)
 			{
 				Console.WriteLine("SQL Error" + ex.Message.ToString());
 				return -1;
 			}
 
-			finally
-			{
-				con.Close();
-
-			}
 			return 1;
-			
 		}
 
 
@@ -1568,45 +1152,17 @@ namespace DBProject.DAL
 		/*THIS FUNTION RETURN CURRENT DAY APPONTMENT*/
 		public int search_patient_DAL(int did, ref DataTable result)
 		{
+			try
+			{
+				FillFromStoredProcedure("TODAYS_APPOINTMENTS", result,
+					CreateParam("@DOC_ID", did, SqlDbType.Int));
+				return 1;
+			}
+			catch
+			{
+			}
 
-			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-
-			SqlCommand cmd;
-
-            try
-            {
-
-
-                cmd = new SqlCommand("TODAYS_APPOINTMENTS", con);
-                cmd.CommandType = CommandType.StoredProcedure;
-
-                cmd.Parameters.Add("@DOC_ID", SqlDbType.Int).Value = did;
-
-                cmd.ExecuteNonQuery();
-
-                using (SqlDataAdapter da = new SqlDataAdapter(cmd))
-                {
-                    da.Fill(ds);
-                }
-
-
-
-                result = ds.Tables[0];
-            }
-
-            catch (SqlException ex)
-            {
-
-            }
-            
-            finally
-            {
-                con.Close();
-            }
-
-            return 1;
+			return 1;
 		}
 
 
@@ -1617,34 +1173,21 @@ namespace DBProject.DAL
 		/*UPDATE THE PRESCRIPTION WHEN APPOINTMENT IS GOING ON BY DOCTOR*/
 		public int update_prescription_DAL(int did, int appointid, string disease, string progres, string prescrip)
 		{
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd;
 			try
 			{
-				cmd = new SqlCommand("UpdatePrescription", con);
-				cmd.CommandType = CommandType.StoredProcedure;
-				cmd.Parameters.Add("@docId", SqlDbType.Int).Value = did;
-				cmd.Parameters.Add("@appointid", SqlDbType.Int).Value = appointid;
-				cmd.Parameters.Add("@Disease", SqlDbType.VarChar, 30).Value = disease;
-				cmd.Parameters.Add("@progress", SqlDbType.VarChar, 50).Value = progres;
-				cmd.Parameters.Add("@prescription", SqlDbType.VarChar, 60).Value = prescrip;
-
-				cmd.ExecuteNonQuery();
+				ExecuteStoredProcedure("UpdatePrescription",
+					CreateParam("@docId", did, SqlDbType.Int),
+					CreateParam("@appointid", appointid, SqlDbType.Int),
+					CreateParam("@Disease", disease, SqlDbType.VarChar, 30),
+					CreateParam("@progress", progres, SqlDbType.VarChar, 50),
+					CreateParam("@prescription", prescrip, SqlDbType.VarChar, 60));
 			}
-			
-			catch (SqlException ex)
+			catch
 			{
 				return 0;
 			}
-			finally
-			{ 
-			con.Close();
-			}
 
 			return 1;
-			
-
 		}
 
 
@@ -1652,41 +1195,16 @@ namespace DBProject.DAL
 
 		public int generate_bill_DAL(int docid, ref DataTable result)
 		{
-			DataSet ds = new DataSet();
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd;
-
-            try
-            {
-                cmd = new SqlCommand("generate_bill", con);
-                cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.Add("@dId", SqlDbType.Int);
-                cmd.Parameters["@did"].Value = docid;
-
-
-                cmd.ExecuteNonQuery();
-                using (SqlDataAdapter da = new SqlDataAdapter(cmd))
-                {
-                    da.Fill(ds);
-
-                }
-
-                result = ds.Tables[0];
-              
-            }
-
-            catch (SqlException ex)
-            {
-                return -1;
-            }
-
-            finally
-            {
-                con.Close();
-            }
-
-            return 1;
+			try
+			{
+				FillFromStoredProcedure("generate_bill", result,
+					CreateParam("@dId", docid, SqlDbType.Int));
+				return 1;
+			}
+			catch
+			{
+				return -1;
+			}
 		}
 
 
@@ -1694,88 +1212,32 @@ namespace DBProject.DAL
 
 		public void paid_bill_DAL(int did, int appoint)
 		{
-
-			SqlConnection con = new SqlConnection(connString);
-			con.Open();
-			SqlCommand cmd;
-			
-			cmd = new SqlCommand("finishedPaid", con);
-			cmd.CommandType = CommandType.StoredProcedure;
-
-			cmd.Parameters.Add("@docId", SqlDbType.Int).Value = did;
-			cmd.Parameters.Add("@appointid", SqlDbType.Int).Value = appoint;
-			
-			cmd.ExecuteNonQuery();
-
-            con.Close();
+			ExecuteStoredProcedure("finishedPaid",
+				CreateParam("@docId", did, SqlDbType.Int),
+				CreateParam("@appointid", appoint, SqlDbType.Int));
 		}
 
 
         public void Unpaid_bill_DAL(int did, int appoint)
         {
-
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
-            SqlCommand cmd;
-
-            cmd = new SqlCommand("finishedUnPaid", con);
-            cmd.CommandType = CommandType.StoredProcedure;
-
-            cmd.Parameters.Add("@docId", SqlDbType.Int).Value = did;
-            cmd.Parameters.Add("@appointid", SqlDbType.Int).Value = appoint;
-
-            cmd.ExecuteNonQuery();
-
-            con.Close();
+			ExecuteStoredProcedure("finishedUnPaid",
+				CreateParam("@docId", did, SqlDbType.Int),
+				CreateParam("@appointid", appoint, SqlDbType.Int));
         }
 
 
         public int getPHistory(int id, ref DataTable result)
         {
-            DataSet ds = new DataSet();
-            SqlConnection con = new SqlConnection(connString);
-            con.Open();
-            SqlCommand cmd1;
-
-            try
-            {
-
-                /*
-				 * 
-				 * procedure RetrievePHistory
-                  
-				@dID int,
-                  @count int OUTPUT
-                 */
-
-
-                cmd1 = new SqlCommand("RetrievePHistory", con);
-                cmd1.CommandType = CommandType.StoredProcedure;
-
-                /*INPUT*/
-                cmd1.Parameters.Add("@dId", SqlDbType.Int).Value = id;
-
-                cmd1.ExecuteNonQuery();
-
-                using (SqlDataAdapter da = new SqlDataAdapter(cmd1))
-                {
-                    da.Fill(ds);
-                }
-
-                result = ds.Tables[0];
-                return 1;
-            }
-
-            /*ON ERROR RETURN -1*/
-            catch (SqlException ex)
-            {
-                return -1;
-            }
-
-            finally
-            {
-                con.Close();
-            }
+			try
+			{
+				FillFromStoredProcedure("RetrievePHistory", result,
+					CreateParam("@dId", id, SqlDbType.Int));
+				return 1;
+			}
+			catch
+			{
+				return -1;
+			}
         }
 
 

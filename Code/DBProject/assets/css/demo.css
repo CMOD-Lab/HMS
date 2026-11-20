@@ -1,4 +1,14 @@
-@import url('http://fonts.googleapis.com/css?family=Open+Sans:400,700');
+/* Font moved to S3 behind CloudFront with SRI - see <link> tag in Master pages */
+@font-face {
+    font-family: 'Open Sans';
+    src: url('/assets/fonts/open-sans-regular.eot');
+    src: url('/assets/fonts/open-sans-regular.eot?#iefix') format('embedded-opentype'),
+         url('/assets/fonts/open-sans-regular.woff2') format('woff2'),
+         url('/assets/fonts/open-sans-regular.woff') format('woff'),
+         url('/assets/fonts/open-sans-regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+}
 
 *{
 	padding:0;

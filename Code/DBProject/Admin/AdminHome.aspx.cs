@@ -2,13 +2,19 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
+// Migration note (cr-dotnet-0026): System.Web.UI and System.Web.UI.WebControls are
+// Web Forms namespaces. In the ASP.NET Core migration, these will be replaced by
+// Microsoft.AspNetCore.Mvc.RazorPages / Microsoft.AspNetCore.Mvc.
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using System.Data;
+using System.Threading.Tasks;
 using DBProject.DAL;
 
 namespace DBProject
 {
+	// Migration note (cr-dotnet-0026): In ASP.NET Core, this class would become a
+	// Razor Page PageModel instead of inheriting from System.Web.UI.Page.
 	public partial class AdminHome : System.Web.UI.Page
 	{
 
@@ -41,11 +47,19 @@ namespace DBProject
 
 
 			department_View.DataSource = arrTable[3];
-			department_View.DataBind();
+            // cr-dotnet-1034: Async DataBind using RegisterAsyncTask
+            RegisterAsyncTask(new PageAsyncTask(async () =>
+            {
+                await Task.Run(() => department_View.DataBind());
+            }));
 
 
-			Appointment_view.DataSource = arrTable[4];
-			Appointment_view.DataBind();
+            Appointment_view.DataSource = arrTable[4];
+            // cr-dotnet-1034: Async DataBind using RegisterAsyncTask
+            RegisterAsyncTask(new PageAsyncTask(async () =>
+            {
+                await Task.Run(() => Appointment_view.DataBind());
+            }));
 			
 
 

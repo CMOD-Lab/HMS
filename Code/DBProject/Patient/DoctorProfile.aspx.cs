@@ -2,6 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
+// Migration note (cr-dotnet-0026): System.Web.UI and System.Web.UI.WebControls are
+// Web Forms namespaces. In the ASP.NET Core migration, these will be replaced by
+// Microsoft.AspNetCore.Mvc.RazorPages / Microsoft.AspNetCore.Mvc.
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using DBProject.DAL;
@@ -11,6 +14,8 @@ using System.Data;
 
 namespace DBProject
 {
+    // Migration note (cr-dotnet-0026): In ASP.NET Core, this class would become a
+    // Razor Page PageModel instead of inheriting from System.Web.UI.Page.
     public partial class DoctorProfile : System.Web.UI.Page
     {
         protected void Page_Load(object sender, EventArgs e)
@@ -26,7 +31,8 @@ namespace DBProject
         {
             myDAL objmyDAl = new myDAL();
 
-            string dID1 = (string) Session["dID"];
+            // cr-dotnet-0045: Redis-backed distributed session
+            string dID1 = (string) SessionHelper.Get("dID");
 
             int dID = Convert.ToInt32(dID1);
 
@@ -42,7 +48,8 @@ namespace DBProject
             int workE = 0;
             int age = 0;
 
-            string deptName = (string)Session["deptOriginal"];
+            // cr-dotnet-0045: Redis-backed distributed session
+            string deptName = (string)SessionHelper.Get("deptOriginal");
 
             int status = objmyDAl.doctorInfoDisplayer(dID, ref name, ref phone, ref gender, ref charges_Per_Visit, ref ReputeIndex, ref PatientsTreated, ref qualification, ref specialization, ref workE, ref age);
 
@@ -75,6 +82,8 @@ namespace DBProject
         protected void RedirectToAppointmentTaker(object sender, EventArgs e)
         {
             Response.BufferOutput = true;
+            // cr-dotnet-0126: Stateless redirect using Redis cache instead of sticky sessions
+            SessionHelper.Set("RedirectTarget", "AppointmentTaker.aspx");
             Response.Redirect("AppointmentTaker.aspx");
         }
         
